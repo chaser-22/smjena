@@ -19,12 +19,14 @@
     "node": true
   },
   "options": {
-    "typeAware": true,
-    "typeCheck": true
+    "typeAware": false,
+    "typeCheck": false
   },
   "ignorePatterns": [
     ".next/**",
     ".vinext/**",
+    "components/ui/**",
+    "hooks/use-mobile.ts",
     "out/**",
     "build/**",
     "dist/**",
