@@ -132,7 +132,7 @@ body {
 .font-display { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .eyebrow { font-size: 10px; font-weight: 800; letter-spacing: .14em; color: #8a94a5; }
 .app-grid { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 24px; padding: 22px 0 80px; }
-.score-ring { background: conic-gradient(#ff5b35 0 var(--score, 96%), #eef0f3 var(--score, 96%) 100%); position: relative; }
+.score-ring { background: conic-gradient(#ff5b35 0 var(--score, 0%), #eef0f3 var(--score, 0%) 100%); position: relative; }
 .score-ring::after { content: ''; position: absolute; inset: 4px; border-radius: 999px; background: white; }
 .score-ring > span { position: relative; z-index: 1; }
 .mobile-nav { display: none; }

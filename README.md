@@ -1,29 +1,30 @@
 # SMJENA
 
-SMJENA is an emergency labor network for hospitality: employers fill a shift in minutes, while trusted local workers earn today without CVs, cover letters, or a long selection process.
+SMJENA is an emergency labor marketplace for hospitality built on a production database and authorization model. Employers publish a clearly priced shift, available workers claim it without an application queue, and the system records attendance, completion, reputation and money owed.
 
-The first market is Montenegro. The product is deliberately narrow at launch—waiters, bartenders, kitchen staff, hosts, and other urgent hospitality roles in Budva, Tivat, Kotor, and Podgorica. The same operating model can expand across the Balkans after local liquidity and trust are proven.
+The first market is Montenegro. The initial operational categories are waiters, bartenders, kitchen staff, cleaners and hotel staff.
 
-## Product focus
+## What is implemented
 
-SMJENA is not another job board. It optimizes one result: **a verified worker arriving for a clearly priced shift on time**.
+- Passwordless Supabase authentication with permanent worker and employer roles.
+- Postgres source of truth; no local-only marketplace state.
+- Row Level Security, explicit grants and server-side authorization for every mutation.
+- Atomic shift claiming that prevents overbooking and blocks multiple active shifts per worker.
+- Employer posting, crew-first access, public broadcast, pay increases and replacement requests.
+- Worker availability, claiming, check-in, check-out and an auditable EUR payment ledger entry.
+- Completed-shift ratings and trusted-worker crews.
+- Real database-derived earnings and operational metrics; unknown metrics display as unknown rather than fabricated values.
+- Supabase Realtime dashboard refresh.
+- VAPID-secured Web Push subscription storage and targeted shift notifications.
+- Installable PWA, offline fallback, security headers and Vercel deployment support.
 
-- Workers see pay, distance, hours, employer trust, and remaining places before claiming.
-- A shift is claimed in one action; there is no application queue.
-- Employers can publish in under 30 seconds, notify their trusted crew first, then broadcast publicly.
-- Check-in, check-out, ratings, reliability score, instant replacement, and transparent earnings create the trust loop.
-- Positive feedback is tied to real progress—accepted work, arrival, completion, money earned, and reputation—not artificial streak pressure or random rewards.
+## Security model
 
-## Interactive MVP
-
-This repository contains a responsive, installable Next.js web app with connected demo state:
-
-- Worker availability, live SOS feed, claim confirmation, active-shift countdown, check-in/out, earnings, score, goals, crews, and completion reward.
-- Employer shift creation, templates, crew-first dispatch, fill progress, pay boost, public broadcast, simulated cancellation, replacement activation, ratings, and trusted-worker roster.
-- Actions in one role immediately update the other role. Demo state persists in local storage and can be reset from the employer view.
-- PWA manifest, production service worker, offline fallback, social metadata, and Vercel-aware canonical metadata.
+The publishable Supabase key is safe for the browser because database access is restricted by grants and Row Level Security. The service-role key is used only in server code for notification dispatch. Sensitive operations authenticate the user again, validate untrusted input and rely on database functions for concurrency-sensitive state changes.
 
 ## Run locally
+
+Follow [the production setup guide](docs/production-setup.md), then:
 
 ```bash
 npm install
@@ -32,26 +33,14 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-For a production check:
+Quality checks:
 
 ```bash
+npm run lint
 npm run build
-npm start
+npm audit --omit=dev
 ```
 
-## Deploy on Vercel
+## Production boundaries
 
-Import the GitHub repository into Vercel. The framework preset should be detected as Next.js; no custom build or output settings are required. Set `NEXT_PUBLIC_SITE_URL` to the final production URL if a custom domain is used.
-
-## Production integration boundaries
-
-The current experience is a complete interactive product prototype, not yet a multi-user production marketplace. The following boundaries are intentionally isolated behind the state hook and should be replaced next:
-
-1. Authentication and role-specific profiles.
-2. Database and real-time shift matching.
-3. Geolocation, radius queries, and maps.
-4. Push/SMS notifications and background dispatch.
-5. Identity/business verification, payment authorization, payouts, invoices, and local compliance.
-6. Server-enforced check-in, fraud controls, cancellation rules, moderation, and support tooling.
-
-Recommended product sequence: launch a concierge-backed pilot in one dense coastal area, measure time-to-fill and show-up rate, then automate payments and expand city by city.
+Authentication, authorization, marketplace data, realtime updates, Web Push and the transaction ledger are implemented. Actual payouts, identity verification, business verification, SMS fallback, invoices and tax reporting require external providers and legal accounts. See [Production setup](docs/production-setup.md).

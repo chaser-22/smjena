@@ -12,7 +12,6 @@ import {
   Heart,
   MapPin,
   QrCode,
-  RotateCcw,
   ShieldCheck,
   Sparkles,
   Star,
@@ -48,8 +47,9 @@ type WorkerDashboardProps = {
   onClaim: (id: string) => void;
   onCheckIn: (id: string) => void;
   onCheckOut: (id: string) => void;
+  onCancel: (id: string) => void;
   onAvailability: (available: boolean) => void;
-  onNotifications: (enabled: boolean) => void;
+  onNotifications: (enabled: boolean, subscription?: PushSubscriptionJSON) => void;
   onDismissReward: () => void;
   onReset: () => void;
 };
@@ -59,6 +59,7 @@ export function WorkerDashboard({
   onClaim,
   onCheckIn,
   onCheckOut,
+  onCancel,
   onAvailability,
   onNotifications,
   onDismissReward,
@@ -66,6 +67,7 @@ export function WorkerDashboard({
 }: WorkerDashboardProps) {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [checkInOpen, setCheckInOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [onlyToday, setOnlyToday] = useState(false);
 
   const activeShift = state.shifts.find((shift) => shift.id === state.activeShiftId) ?? null;
@@ -80,11 +82,6 @@ export function WorkerDashboard({
   const confirmClaim = () => {
     if (!selectedShift) return;
     onClaim(selectedShift.id);
-    toast.add({
-      title: 'SMJENA JE TVOJA ✓',
-      description: `${selectedShift.role} · ${selectedShift.dayLabel} u ${selectedShift.start}`,
-      type: 'success',
-    });
     setSelectedShift(null);
   };
 
@@ -93,9 +90,21 @@ export function WorkerDashboard({
       toast.add({ title: 'Obavijesti nijesu dostupne', description: 'Ovaj preglednik ne podržava obavijesti.', type: 'warning' });
       return;
     }
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!publicKey) {
+      toast.add({ title: 'Obavijesti još nijesu konfigurisane', description: 'Nedostaje javni VAPID ključ na serveru.', type: 'warning' });
+      return;
+    }
     const permission = await Notification.requestPermission();
     const enabled = permission === 'granted';
-    onNotifications(enabled);
+    let subscription: PushSubscriptionJSON | undefined;
+    if (enabled) {
+      const registration = await navigator.serviceWorker.getRegistration() ?? await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+      const existing = await registration.pushManager.getSubscription();
+      const pushSubscription = existing ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      subscription = pushSubscription.toJSON();
+    }
+    onNotifications(enabled, subscription);
     toast.add({
       title: enabled ? 'SOS obavijesti uključene' : 'Obavijesti nijesu uključene',
       description: enabled ? 'Javićemo ti kada se pojavi vrijedna smjena u blizini.' : 'Možeš ih uključiti kasnije u postavkama preglednika.',
@@ -134,8 +143,8 @@ export function WorkerDashboard({
               onCheckIn={() => setCheckInOpen(true)}
               onCheckOut={() => {
                 onCheckOut(activeShift.id);
-                toast.add({ title: `+€${activeShift.pay} zarađeno`, description: 'Smjena je završena. Tvoj rezultat je ažuriran.', type: 'success' });
               }}
+              onCancel={() => setCancelOpen(true)}
             />
           ) : featured ? (
             <ShiftCard shift={featured} featured onClaim={() => setSelectedShift(featured)} />
@@ -259,14 +268,28 @@ export function WorkerDashboard({
         <DialogContent className="max-w-sm rounded-[24px] text-center">
           <DialogHeader className="items-center"><div className="grid size-20 place-items-center rounded-[24px] bg-[#101d34] text-white"><QrCode className="size-11" /></div><DialogTitle className="font-display mt-2 text-2xl font-black">Check-in kod</DialogTitle><DialogDescription>Pokaži kod voditelju smjene ili potvrdi dolazak na lokaciji.</DialogDescription></DialogHeader>
           <div className="rounded-2xl bg-slate-50 p-4 text-left text-xs text-slate-600"><p className="font-extrabold text-slate-900">Zaštićen check-in</p><p className="mt-1">Evidentira dolazak, početak obračuna i štiti obje strane.</p></div>
-          <Button onClick={() => { if (activeShift) onCheckIn(activeShift.id); setCheckInOpen(false); toast.add({ title: 'Check-in potvrđen', description: 'Stigao si. Sretno na smjeni!', type: 'success' }); }} className="h-11 rounded-xl bg-[#16896c] font-extrabold hover:bg-[#11765d]"><CheckCircle2 /> Potvrdi dolazak</Button>
+          <Button onClick={() => { if (activeShift) onCheckIn(activeShift.id); setCheckInOpen(false); }} className="h-11 rounded-xl bg-[#16896c] font-extrabold hover:bg-[#11765d]"><CheckCircle2 /> Potvrdi dolazak</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="rounded-[24px] sm:max-w-sm">
+          <DialogHeader><DialogTitle className="font-display text-2xl font-black">Otkazati smjenu?</DialogTitle><DialogDescription>Mjesto će odmah biti vraćeno u mrežu. Česta ili kasna otkazivanja utiču na pouzdanost.</DialogDescription></DialogHeader>
+          <DialogFooter><DialogClose render={<Button variant="outline" className="h-11 rounded-xl" />}>Zadrži smjenu</DialogClose><Button variant="destructive" onClick={() => { if (activeShift) onCancel(activeShift.id); setCancelOpen(false); }} className="h-11 rounded-xl font-bold">Potvrdi otkazivanje</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   );
 }
 
-function ActiveShift({ shift, onCheckIn, onCheckOut }: { shift: Shift; onCheckIn: () => void; onCheckOut: () => void }) {
+function urlBase64ToUint8Array(value: string) {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = window.atob(base64);
+  return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)));
+}
+
+function ActiveShift({ shift, onCheckIn, onCheckOut, onCancel }: { shift: Shift; onCheckIn: () => void; onCheckOut: () => void; onCancel: () => void }) {
   const inProgress = shift.status === 'in_progress';
   return (
     <article className="active-shift overflow-hidden rounded-[30px] bg-[#0d1d1a] text-white shadow-[0_28px_70px_rgba(13,29,26,.2)]">
@@ -282,7 +305,7 @@ function ActiveShift({ shift, onCheckIn, onCheckOut }: { shift: Shift; onCheckIn
         <div className="mt-6 grid gap-3 sm:grid-cols-3"><ActiveInfo icon={<MapPin />} label="Lokacija" value={shift.area} /><ActiveInfo icon={<Clock3 />} label="Vrijeme" value={`${shift.start}–${shift.end}`} /><ActiveInfo icon={<Users />} label="Ekipa" value={`${shift.workersNeeded} radnika`} /></div>
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t border-white/10 bg-white/[.035] p-5 sm:px-7">
-        {inProgress ? <Button onClick={onCheckOut} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><CircleDollarSign /> Završi smjenu i zaradi €{shift.pay}</Button> : <Button onClick={onCheckIn} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><QrCode /> Otvori check-in</Button>}
+        <div className="flex flex-wrap gap-2">{inProgress ? <Button onClick={onCheckOut} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><CircleDollarSign /> Završi smjenu i evidentiraj €{shift.pay}</Button> : <><Button onClick={onCheckIn} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><QrCode /> Potvrdi dolazak</Button><Button onClick={onCancel} variant="outline" className="h-11 rounded-xl border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white">Otkaži</Button></>}</div>
         <span className="text-xs text-white/45">{inProgress ? 'Poslodavac potvrđuje sate nakon checkouta.' : 'Dođi 10 minuta ranije. Sretno!'}</span>
       </div>
     </article>
@@ -311,5 +334,5 @@ function TrustCard({ icon, title, copy }: { icon: React.ReactNode; title: string
 }
 
 function EmptyFeed({ onReset }: { onReset: () => void }) {
-  return <div className="rounded-[30px] border border-dashed border-slate-300 bg-white p-10 text-center"><Target className="mx-auto size-8 text-slate-300" /><h2 className="font-display mt-4 text-2xl font-black">Sve dostupne smjene su uzete</h2><p className="mx-auto mt-2 max-w-md text-sm text-slate-500">To je dobar znak. Uključi obavijesti ili resetuj demo da ponovo prođeš cijeli tok.</p><Button onClick={onReset} variant="outline" className="mt-5 rounded-xl"><RotateCcw /> Resetuj demo</Button></div>;
+  return <div className="rounded-[30px] border border-dashed border-slate-300 bg-white p-10 text-center"><Target className="mx-auto size-8 text-slate-300" /><h2 className="font-display mt-4 text-2xl font-black">Trenutno nema dostupnih smjena</h2><p className="mx-auto mt-2 max-w-md text-sm text-slate-500">Uključi obavijesti i javićemo ti kada poslodavac objavi novu smjenu u tvojoj blizini.</p><Button onClick={onReset} variant="outline" className="mt-5 rounded-xl">Osvježi smjene</Button></div>;
 }

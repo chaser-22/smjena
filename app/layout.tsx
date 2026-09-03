@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { PwaRegister } from '@/components/pwa-register';
 import "./globals.css";
 
 const productionUrl = process.env.NEXT_PUBLIC_SITE_URL
@@ -40,7 +41,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="sr-Latn-ME">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased"><PwaRegister />{children}</body>
     </html>
   );
 }
