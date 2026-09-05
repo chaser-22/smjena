@@ -136,8 +136,8 @@ body {
 .score-ring::after { content: ''; position: absolute; inset: 4px; border-radius: 999px; background: white; }
 .score-ring > span { position: relative; z-index: 1; }
 .mobile-nav { display: none; }
-.skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; min-height: 44px; transform: translateY(-150%); border-radius: 10px; background: #101d34; padding: 12px 16px; color: white; font-size: 14px; font-weight: 800; }
-.skip-link:focus { transform: translateY(0); }
+.skip-link { position: fixed; top: -80px; left: 8px; z-index: 100; min-height: 44px; border-radius: 10px; background: #101d34; padding: 12px 16px; color: white; font-size: 14px; font-weight: 800; }
+.skip-link:focus { top: 8px; }
 
 ::selection { color: white; background: #ff5b35; }
 

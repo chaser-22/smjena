@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main id="main-content" className="min-h-screen bg-[#f4f1eb] px-4 py-8 text-[#101d34] sm:py-14">
       <div className="mx-auto mb-8 max-w-5xl"><Brand /></div>
       <div className="mx-auto grid max-w-5xl overflow-hidden rounded-[34px] border border-black/10 bg-white shadow-2xl shadow-[#101d34]/10 lg:grid-cols-[1.05fr_.95fr]">
-        <section className="relative overflow-hidden bg-[#101d34] p-8 text-white sm:p-12">
+        <section className="relative hidden overflow-hidden bg-[#101d34] p-8 text-white sm:p-12 lg:block">
           <div className="absolute -right-24 -top-24 size-72 rounded-full bg-[#ff5b35]/20 blur-2xl" />
           <div className="relative">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em]"><Zap className="size-3 fill-current text-[#ff7a59]" /> Mreža hitnog rada</span>
