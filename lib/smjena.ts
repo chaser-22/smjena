@@ -88,6 +88,7 @@ export type NewShiftInput = {
   end: string;
   pay: number;
   area: string;
+  requirements: string[];
   urgent: boolean;
   crewFirst: boolean;
 };
@@ -116,4 +117,8 @@ export function remainingSpots(shift: Shift) {
 export function completionPercent(shift: Shift) {
   if (shift.workersNeeded <= 0) return 0;
   return Math.min((shift.claimedCount / shift.workersNeeded) * 100, 100);
+}
+
+export function parseRequirements(value: string) {
+  return [...new Set(value.split(/[,\n]/).map((item) => item.trim()).filter(Boolean))].slice(0, 8);
 }

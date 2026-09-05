@@ -18,6 +18,7 @@ const ShiftSchema = z.object({
   end: z.string().regex(/^\d{2}:\d{2}$/),
   pay: z.number().min(20).max(5000),
   area: z.string().trim().min(2).max(200),
+  requirements: z.array(z.string().trim().min(2).max(80)).max(8),
   urgent: z.boolean(),
   crewFirst: z.boolean(),
 });
@@ -131,7 +132,7 @@ export async function postShiftAction(input: NewShiftInput): Promise<ActionResul
 
   const payCents = Math.round(parsed.data.pay * 100);
   const bonusCents = parsed.data.urgent ? Math.min(1500, payCents - 2000) : 0;
-  const { data: createdShiftId, error } = await context.supabase.rpc('create_shift', {
+  const { data: createdShiftId, error } = await context.supabase.rpc('create_shift_with_details', {
     target_employer_id: membership.employer_id,
     shift_role: parsed.data.role,
     shift_area: parsed.data.area,
@@ -140,6 +141,7 @@ export async function postShiftAction(input: NewShiftInput): Promise<ActionResul
     shift_pay_cents: payCents,
     shift_bonus_cents: bonusCents,
     shift_workers_needed: parsed.data.workersNeeded,
+    shift_requirements: parsed.data.requirements,
     shift_urgent: parsed.data.urgent,
     shift_audience: parsed.data.crewFirst ? 'crew' : 'public',
   });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { completionPercent, remainingSpots, type Shift } from './smjena.ts';
+import { completionPercent, parseRequirements, remainingSpots, type Shift } from './smjena.ts';
 
 function shift(overrides: Partial<Shift> = {}): Shift {
   return {
@@ -46,4 +46,9 @@ test('completionPercent is capped and handles invalid zero-capacity data safely'
   assert.equal(completionPercent(shift({ workersNeeded: 4, claimedCount: 3 })), 75);
   assert.equal(completionPercent(shift({ workersNeeded: 1, claimedCount: 2 })), 100);
   assert.equal(completionPercent(shift({ workersNeeded: 0, claimedCount: 0 })), 0);
+});
+
+test('parseRequirements trims, deduplicates and caps employer input', () => {
+  assert.deepEqual(parseRequirements('Crna košulja, POS kasa\nCrna košulja'), ['Crna košulja', 'POS kasa']);
+  assert.equal(parseRequirements('1,2,3,4,5,6,7,8,9').length, 8);
 });

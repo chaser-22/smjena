@@ -45,6 +45,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import {
   employerShifts,
+  parseRequirements,
   remainingSpots,
   roles,
   type NewShiftInput,
@@ -252,7 +253,8 @@ function PostShiftDialog({ open, onOpenChange, template, employerCity, hasCrew, 
         start: String(data.get('start')),
         end: String(data.get('end')),
         pay: Number(data.get('pay')),
-        area: String(data.get('area')),
+      area: String(data.get('area')),
+      requirements: parseRequirements(String(data.get('requirements') ?? '')),
         date: String(data.get('date')),
         urgent,
         crewFirst,
@@ -275,6 +277,7 @@ function PostShiftDialog({ open, onOpenChange, template, employerCity, hasCrew, 
               </div>
               <div className="grid gap-4 sm:grid-cols-3"><Field><FieldLabel htmlFor="date">Datum</FieldLabel><Input id="date" name="date" type="date" defaultValue={defaults.date} min={montenegroDateInput()} required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="start">Početak</FieldLabel><Input id="start" name="start" type="time" defaultValue={defaults.start} required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="end">Završetak</FieldLabel><Input id="end" name="end" type="time" defaultValue={defaults.end} required className="h-11 rounded-xl" /></Field></div>
               <div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel htmlFor="pay">Ukupno po osobi (€)</FieldLabel><Input id="pay" name="pay" type="number" defaultValue={defaults.pay} min="20" step="1" placeholder="npr. 80" required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="area">Tačna lokacija</FieldLabel><Input id="area" name="area" defaultValue={defaults.area} autoComplete="street-address" required className="h-11 rounded-xl" /></Field></div>
+              <Field><FieldLabel htmlFor="requirements">Važni uslovi <span className="font-normal text-slate-400">(opciono)</span></FieldLabel><Input id="requirements" name="requirements" defaultValue={template?.requirements.join(', ')} maxLength={400} placeholder="npr. crna košulja, iskustvo sa POS kasom" className="h-11 rounded-xl" /><p className="mt-1 text-[10px] leading-4 text-slate-500">Odvoji uslove zarezom. Radnik ih vidi prije potvrde.</p></Field>
               <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#d6d7ff] bg-[#f7f6ff] p-4"><div className="flex items-start gap-3"><Users className="mt-0.5 size-5 text-[#6e59db]" /><div><p className="text-sm font-extrabold">Prvo pošalji Mojim ljudima</p><p className="mt-1 text-xs text-[#4e4790]">{hasCrew ? 'Javnu mrežu možeš uključiti jednim klikom ako treba još ljudi.' : 'Dodaj radnike nakon završene smjene; za sada objavi javnoj mreži.'}</p></div></div><Switch checked={crewFirst} disabled={!hasCrew} onCheckedChange={setCrewFirst} aria-label="Prvo pošalji Mojim ljudima" /></div>
               <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#ffcfbf] bg-[#fff7f3] p-4"><div className="flex items-start gap-3"><Flame className="mt-0.5 size-5 fill-[#ff5b35] text-[#ff5b35]" /><div><p className="text-sm font-extrabold">SOS smjena</p><p className="mt-1 text-xs text-[#8c4a38]">Prioritetna obavijest radnicima u blizini · dodatak uračunat.</p></div></div><Switch checked={urgent} onCheckedChange={setUrgent} aria-label="Označi kao SOS smjenu" /></div>
             </FieldGroup>
