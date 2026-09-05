@@ -52,7 +52,7 @@ export function LoginForm() {
 
       {state.message && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{state.message}</p>}
 
-      <Button disabled={pending} className="h-12 w-full rounded-xl bg-[#ff5b35] text-sm font-extrabold hover:bg-[#e94b27]">
+      <Button type="submit" disabled={pending} className="h-12 w-full rounded-xl bg-[#ff5b35] text-sm font-extrabold hover:bg-[#e94b27]">
         {pending ? 'Šaljemo siguran link…' : 'Nastavi sigurno'} {!pending && <ArrowRight />}
       </Button>
       <p className="text-center text-[11px] leading-5 text-slate-400">Bez lozinke. Link vrijedi samo jednom i otvara tvoj zaštićeni nalog.</p>
