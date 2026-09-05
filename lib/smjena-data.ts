@@ -18,7 +18,7 @@ export async function getDashboardData(user: User): Promise<DashboardData> {
   const supabase = await createClient();
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, role, full_name, city')
+    .select('id, role, full_name, city, verified_at')
     .eq('id', user.id)
     .single();
 
@@ -33,14 +33,12 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   const supabase = await createClient();
   const now = new Date();
   const weekStart = startOfWeek(now);
-  const previousWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
-
   const [workerResult, feedResult, assignmentResult, trustedResult, ledgerResult] = await Promise.all([
     supabase.from('worker_profiles').select('*').eq('user_id', userId).single(),
     supabase.from('shifts').select('*').eq('status', 'published').eq('city', String(profile.city)).gt('starts_at', now.toISOString()).order('starts_at').limit(50),
     supabase.from('shift_assignments').select('*').eq('worker_id', userId).order('claimed_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('employer_id').eq('worker_id', userId),
-    supabase.from('payment_ledger').select('amount_cents, created_at').eq('worker_id', userId).gte('created_at', previousWeekStart.toISOString()),
+    supabase.from('payment_ledger').select('amount_cents, created_at, status').eq('worker_id', userId).gte('created_at', weekStart.toISOString()),
   ]);
 
   if (workerResult.error || !workerResult.data) throw new Error('Radnički profil nije pronađen.');
@@ -57,7 +55,7 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   const shiftRows = dedupeRows([...(feedResult.data ?? []), ...(assignedShiftResult.data ?? [])] as Row[]);
   const employerIds = [...new Set(shiftRows.map((row) => String(row.employer_id)))];
   const employerResult = employerIds.length
-    ? await supabase.from('employer_marketplace_profiles').select('id, name, average_rating').in('id', employerIds)
+    ? await supabase.from('employer_marketplace_profiles').select('id, name, average_rating, rating_count, verified_at').in('id', employerIds)
     : { data: [], error: null };
   if (employerResult.error) throw employerResult.error;
 
@@ -76,15 +74,17 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
     id: userId,
     name: String(profile.full_name),
     initials: initials(String(profile.full_name)),
+    verified: Boolean(profile.verified_at),
     score: Number(workerRow.reliability_score),
-    rating: Number(workerRow.average_rating),
+    rating: Number(workerRow.rating_count) > 0 ? Number(workerRow.average_rating) : null,
+    ratingCount: Number(workerRow.rating_count),
     completedShifts: Number(workerRow.completed_shifts),
-    attendance: Number(workerRow.attendance_percent),
-    earningsWeek: sumLedger(ledgerRows, weekStart, now),
-    previousWeek: sumLedger(ledgerRows, previousWeekStart, weekStart),
+    attendance: Number(workerRow.completed_shifts) > 0 ? Number(workerRow.attendance_percent) : null,
+    earningsWeek: sumLedger(ledgerRows, weekStart, now, ['pending', 'authorized', 'paid']),
+    paidWeek: sumLedger(ledgerRows, weekStart, now, ['paid']),
+    pendingWeek: sumLedger(ledgerRows, weekStart, now, ['pending', 'authorized']),
     available: Boolean(workerRow.available),
     notificationsEnabled: Boolean(workerRow.notifications_enabled),
-    premiumUnlocked: Boolean(workerRow.premium_unlocked),
     skills: Array.isArray(workerRow.skills) ? workerRow.skills.map(String) : [],
     crewEmployers: (trustedEmployerResult.data ?? []).map((row) => String((row as Row).name)),
   };
@@ -99,7 +99,6 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
       worker,
       employer: emptyEmployer(),
       activeShiftId: activeAssignment ? String(activeAssignment.shift_id) : null,
-      lastReward: null,
     },
   };
 }
@@ -115,13 +114,15 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
   if (membershipError || !membership) throw new Error('Poslodavac nije povezan sa nalogom.');
 
   const employerId = String(membership.employer_id);
-  const [employerResult, shiftResult, trustedResult] = await Promise.all([
+  const [employerResult, shiftResult, trustedResult, ledgerResult] = await Promise.all([
     supabase.from('employers').select('*').eq('id', employerId).single(),
     supabase.from('shifts').select('*').eq('employer_id', employerId).order('starts_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('worker_id').eq('employer_id', employerId),
+    supabase.from('payment_ledger').select('amount_cents, status').eq('employer_id', employerId),
   ]);
   if (employerResult.error || !employerResult.data) throw new Error('Poslodavac nije pronađen.');
   if (shiftResult.error) throw shiftResult.error;
+  if (ledgerResult.error) throw ledgerResult.error;
 
   const shiftRows = (shiftResult.data ?? []) as Row[];
   const shiftIds = shiftRows.map((row) => String(row.id));
@@ -157,9 +158,13 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     id: employerId,
     name: String(employerRow.name),
     city: String(employerRow.city),
-    rating: Number(employerRow.average_rating),
+    verified: Boolean(employerRow.verified_at),
+    rating: Number(employerRow.rating_count) > 0 ? Number(employerRow.average_rating) : null,
+    ratingCount: Number(employerRow.rating_count),
     crewCount: (trustedResult.data ?? []).length,
     completedShifts: Number(employerRow.completed_shifts),
+    ledgerPending: sumLedgerStatuses((ledgerResult.data ?? []) as Row[], ['pending', 'authorized']),
+    ledgerPaid: sumLedgerStatuses((ledgerResult.data ?? []) as Row[], ['paid']),
     crewWorkers: (trustedResult.data ?? []).map((row) => {
       const id = String((row as Row).worker_id);
       const worker = workers.get(id);
@@ -172,7 +177,7 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     cancellationRate: percentage(finalizedAssignments, (row) => ['cancelled', 'no_show'].includes(String(row.status))),
   };
 
-  const employerSummary = { id: employerId, name: employer.name, average_rating: employer.rating };
+  const employerSummary = { id: employerId, name: employer.name, average_rating: employer.rating, rating_count: employer.ratingCount, verified_at: employer.verified ? true : null };
   const shifts = shiftRows.map((row) => {
     const activeAssignments = (assignmentsByShift.get(String(row.id)) ?? []).filter((assignment) => !['cancelled', 'no_show'].includes(String(assignment.status)));
     const mapped = mapShift(row, employerSummary, undefined, activeAssignments.map((assignment) => workerNames.get(String(assignment.worker_id)) ?? 'Radnik'));
@@ -190,7 +195,7 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     userId,
     employerId,
     profileName: String(profile.full_name),
-    state: { shifts, worker: emptyWorker(), employer, activeShiftId: null, lastReward: null },
+    state: { shifts, worker: emptyWorker(), employer, activeShiftId: null },
   };
 }
 
@@ -198,7 +203,7 @@ function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimed
   const startsAt = new Date(String(row.starts_at));
   const endsAt = new Date(String(row.ends_at));
   const claimedCount = Number(row.claimed_count ?? claimedNames?.length ?? 0);
-  const names = claimedNames ?? Array.from({ length: claimedCount }, () => 'Provjeren radnik');
+  const names = claimedNames ?? [];
   const status = assignment?.status === 'checked_in' ? 'in_progress' : assignment?.status === 'claimed' ? 'claimed' : mapStatus(String(row.status));
 
   return {
@@ -218,12 +223,15 @@ function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimed
     bonus: Number(row.bonus_cents) / 100,
     tips: Boolean(row.tips_expected),
     workersNeeded: Number(row.workers_needed),
+    claimedCount,
     claimedWorkers: names,
     urgent: Boolean(row.urgent),
     audience: row.audience === 'crew' ? 'crew' : 'public',
     notifiedCount: Number(row.notified_count),
     viewers: Number(row.viewer_count),
-    employerRating: Number(employer?.average_rating ?? 0),
+    employerRating: Number(employer?.rating_count ?? 0) > 0 ? Number(employer?.average_rating) : null,
+    employerRatingCount: Number(employer?.rating_count ?? 0),
+    employerVerified: Boolean(employer?.verified_at),
     status,
     requirements: Array.isArray(row.requirements) ? row.requirements.map(String) : [],
     fillTime: fillTime(row),
@@ -248,11 +256,15 @@ function startOfWeek(date: Date) {
   return result;
 }
 
-function sumLedger(rows: Row[], start: Date, end: Date) {
+function sumLedger(rows: Row[], start: Date, end: Date, statuses: string[]) {
   return rows.filter((row) => {
     const created = new Date(String(row.created_at));
-    return created >= start && created < end;
+    return created >= start && created < end && statuses.includes(String(row.status));
   }).reduce((sum, row) => sum + Number(row.amount_cents) / 100, 0);
+}
+
+function sumLedgerStatuses(rows: Row[], statuses: string[]) {
+  return rows.filter((row) => statuses.includes(String(row.status))).reduce((sum, row) => sum + Number(row.amount_cents) / 100, 0);
 }
 
 function dedupeRows(rows: Row[]) {
@@ -320,9 +332,9 @@ function firstSkill(skills: unknown) {
 }
 
 function emptyWorker(): WorkerProfile {
-  return { id: '', name: '', initials: '', score: 0, rating: 0, completedShifts: 0, attendance: 0, earningsWeek: 0, previousWeek: 0, available: false, notificationsEnabled: false, premiumUnlocked: false, skills: [], crewEmployers: [] };
+  return { id: '', name: '', initials: '', verified: false, score: 0, rating: null, ratingCount: 0, completedShifts: 0, attendance: null, earningsWeek: 0, paidWeek: 0, pendingWeek: 0, available: false, notificationsEnabled: false, skills: [], crewEmployers: [] };
 }
 
 function emptyEmployer(): EmployerProfile {
-  return { id: '', name: '', city: '', rating: 0, crewCount: 0, completedShifts: 0, crewWorkers: [], fillMedianMinutes: null, attendancePercent: null, repeatRate: null, fillRate: null, cancellationRate: null };
+  return { id: '', name: '', city: '', verified: false, rating: null, ratingCount: 0, crewCount: 0, completedShifts: 0, ledgerPending: 0, ledgerPaid: 0, crewWorkers: [], fillMedianMinutes: null, attendancePercent: null, repeatRate: null, fillRate: null, cancellationRate: null };
 }

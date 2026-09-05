@@ -5,10 +5,10 @@ SMJENA requires a Supabase project and a Vercel project. No privileged key is ex
 ## 1. Create the database
 
 1. Create a Supabase project in a European region.
-2. Open the SQL editor and run `supabase/migrations/202609030001_initial_marketplace.sql`, or link the Supabase CLI and run `supabase db push`.
+2. Apply every file in `supabase/migrations` in filename order, or link the Supabase CLI and run `supabase db push`.
 3. Confirm that Row Level Security is enabled on every public table.
 
-The migration creates authenticated profiles, worker and employer records, shifts, assignments, trusted crews, ratings, a payment ledger and push subscriptions. Shift claiming is an atomic database function, so two workers cannot take the same final place.
+The migrations create authenticated profiles, worker and employer records, shifts, assignments, trusted crews, ratings, a payment ledger, push subscriptions and a privacy-conscious product-event table. Shift claiming is an atomic database function, so two workers cannot take the same final place. Product events contain IDs, constrained event names and timestamps—not names, emails, free-form text or device fingerprints—and are not readable through the browser API.
 
 ## 2. Configure authentication
 

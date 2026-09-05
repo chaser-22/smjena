@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { Bell, BriefcaseBusiness, Clock3, LoaderCircle, LogOut, MapPin, ShieldCheck, Users, WalletCards, Zap } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Bell, BriefcaseBusiness, Clock3, LogOut, MapPin, ShieldCheck, Users, WalletCards, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -31,6 +31,7 @@ import type { NewShiftInput } from '@/lib/smjena';
 
 export function SmjenaApp({ data }: { data: DashboardData }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { state, role } = data;
@@ -47,26 +48,30 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
     return () => { void supabase.removeChannel(channel); };
   }, [data.userId, router]);
 
-  const run = (operation: () => Promise<ActionResult>, success: string) => {
-    startTransition(async () => {
-      const result = await operation();
-      if (!result.ok) {
-        toast.add({ title: 'Akcija nije završena', description: result.error, type: 'warning' });
-        return;
+  const run = (operation: () => Promise<ActionResult>, success: string | ((result: Extract<ActionResult, { ok: true }>) => string)): Promise<boolean> => {
+    return new Promise((resolve) => startTransition(async () => {
+      try {
+        const result = await operation();
+        if (!result.ok) {
+          toast.add({ title: 'Akcija nije završena', description: result.error, type: 'warning' });
+          resolve(false);
+          return;
+        }
+        toast.add({ title: typeof success === 'function' ? success(result) : success, type: 'success' });
+        router.refresh();
+        resolve(true);
+      } catch {
+        toast.add({ title: 'Veza je prekinuta', description: 'Provjeri internet i pokušaj ponovo. Nijesmo potvrdili ovu akciju.', type: 'warning' });
+        resolve(false);
       }
-      toast.add({ title: success, type: 'success' });
-      router.refresh();
-    });
+    }));
   };
 
-  const postShift = (input: NewShiftInput) => {
-    run(() => postShiftAction(input), 'Smjena je objavljena');
-    return 'pending';
-  };
+  const postShift = (input: NewShiftInput) => run(() => postShiftAction(input), 'Smjena je objavljena');
 
   return (
     <Toaster>
-      <main className="min-h-screen bg-[#f6f7f9] text-[#101827]">
+      <main id="main-content" className="min-h-screen bg-[#f6f7f9] text-[#101827]">
         {pending && <div className="fixed inset-x-0 top-0 z-[70] h-1 overflow-hidden bg-[#ffddd4]"><div className="h-full w-1/2 animate-pulse bg-[#ff5b35]" /></div>}
         <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#f6f7f9]/90 backdrop-blur-xl">
           <div className="mx-auto flex h-[72px] max-w-[1240px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -76,8 +81,8 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
               <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[.08em] text-emerald-700"><span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" /> Produkcijska mreža</span>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setNotificationsOpen(true)} variant="ghost" size="icon" className="relative rounded-full" aria-label="Obavijesti"><Bell /></Button>
-              <form action={logoutAction}><Button type="submit" variant="ghost" size="icon" className="rounded-full" aria-label="Odjavi se"><LogOut /></Button></form>
+              <Button onClick={() => setNotificationsOpen(true)} variant="ghost" size="icon" className="relative size-11 rounded-full" aria-label="Obavijesti"><Bell /></Button>
+              <form action={logoutAction}><Button type="submit" variant="ghost" size="icon" className="size-11 rounded-full" aria-label="Odjavi se"><LogOut /></Button></form>
               <span className="grid size-9 place-items-center rounded-full bg-[#101d34] text-xs font-extrabold text-white">{role === 'worker' ? state.worker.initials : data.profileName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')}</span>
             </div>
           </div>
@@ -92,18 +97,20 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
           {role === 'worker' ? (
             <WorkerDashboard
               state={state}
-              onClaim={(id) => run(() => claimShiftAction(id), 'Smjena je tvoja')}
+              busy={pending}
+              highlightShiftId={searchParams.get('shift') ?? undefined}
+              onClaim={(id) => run(() => claimShiftAction(id, searchParams.get('source') === 'push' ? 'push' : 'dashboard'), 'Smjena je tvoja')}
               onCheckIn={(id) => run(() => checkInAction(id), 'Dolazak je potvrđen')}
-              onCheckOut={(id) => run(() => checkOutAction(id), 'Smjena je završena i evidentirana')}
+              onCheckOut={(id) => run(() => checkOutAction(id), (result) => `Smjena završena · €${result.amount ?? 0} evidentirano za obračun`)}
               onCancel={(id) => run(() => cancelAssignmentAction(id), 'Smjena je otkazana i mjesto je ponovo otvoreno')}
               onAvailability={(available) => run(() => setAvailabilityAction(available), available ? 'Sada si dostupan' : 'Dostupnost je isključena')}
               onNotifications={(enabled, subscription) => run(() => setNotificationsAction(enabled, subscription), enabled ? 'Obavijesti su uključene' : 'Obavijesti su isključene')}
-              onDismissReward={() => router.refresh()}
               onReset={() => router.refresh()}
             />
           ) : (
             <EmployerDashboard
               state={state}
+              busy={pending}
               onPost={postShift}
               onRaisePay={(id) => run(() => raiseShiftPayAction(id), 'Ponuda je povećana za €10')}
               onBroadcast={(id) => run(() => broadcastShiftAction(id), 'Smjena je poslata javnoj mreži')}
@@ -132,12 +139,12 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
             <DialogHeader><DialogTitle className="font-display text-2xl font-black">Aktivnost</DialogTitle><DialogDescription>Promjene sačuvane na tvom nalogu.</DialogDescription></DialogHeader>
             <div className="space-y-2">
               {activeShift && <NotificationItem icon={<Zap />} color="bg-[#fff0eb] text-[#ff5b35]" title="Aktivna smjena" copy={`${activeShift.role} · ${activeShift.dayLabel} u ${activeShift.start}`} />}
-              {role === 'employer' && openEmployerShift && <NotificationItem icon={<Users />} color="bg-[#f1f0ff] text-[#6e59db]" title={`${openEmployerShift.claimedWorkers.length}/${openEmployerShift.workersNeeded} mjesta popunjeno`} copy={`${openEmployerShift.role} · ${openEmployerShift.area}`} />}
+              {role === 'employer' && openEmployerShift && <NotificationItem icon={<Users />} color="bg-[#f1f0ff] text-[#6e59db]" title={`${openEmployerShift.claimedCount}/${openEmployerShift.workersNeeded} mjesta popunjeno`} copy={`${openEmployerShift.role} · ${openEmployerShift.area}`} />}
               {!activeShift && !(role === 'employer' && openEmployerShift) && <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center"><Clock3 className="mx-auto size-5 text-slate-300" /><p className="mt-2 text-sm font-bold">Nema novih aktivnosti</p></div>}
             </div>
           </DialogContent>
         </Dialog>
-        {pending && <span className="sr-only"><LoaderCircle /> Obrada u toku</span>}
+        <output className="sr-only" aria-live="polite">{pending ? 'Obrada u toku' : 'Spremno'}</output>
       </main>
     </Toaster>
   );

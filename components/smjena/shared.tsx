@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   Clock3,
   MapPin,
+  ShieldCheck,
   Star,
   Users,
   Zap,
@@ -50,7 +51,7 @@ export function Metric({ value, label, accent }: { value: string; label: string;
   );
 }
 
-export function ShiftCard({ shift, onClaim, featured = false, disabled = false }: { shift: Shift; onClaim: () => void; featured?: boolean; disabled?: boolean }) {
+export function ShiftCard({ shift, onClaim, featured = false, disabled = false, disabledLabel }: { shift: Shift; onClaim: () => void; featured?: boolean; disabled?: boolean; disabledLabel?: string }) {
   if (featured) {
     return (
       <article className="featured-shift relative overflow-hidden rounded-[30px] bg-[#101d34] p-5 text-white shadow-[0_28px_70px_rgba(16,29,52,.2)] sm:p-7">
@@ -78,13 +79,19 @@ export function ShiftCard({ shift, onClaim, featured = false, disabled = false }
               <p className="text-xs font-bold uppercase tracking-[.12em] text-[#ff9b83]">Počinje za {shift.startsIn}</p>
               <h2 className="font-display mt-2 text-[clamp(2rem,5vw,3.4rem)] font-black leading-none tracking-[-.055em]">{shift.role}</h2>
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-white/70">
-                <span>{shift.employer} · <Star className="mb-0.5 inline size-3.5 fill-[#ffcc73] text-[#ffcc73]" /> {shift.employerRating.toFixed(1)}</span>
+                <span className="flex items-center gap-1.5">
+                  {shift.employer}
+                  {shift.employerVerified && <ShieldCheck className="size-3.5 text-[#77f0bd]" aria-label="Verifikovan poslodavac" />}
+                  <span aria-label={shift.employerRating === null ? 'Poslodavac još nema ocjene' : `Ocjena poslodavca ${shift.employerRating.toFixed(1)}`}>
+                    {shift.employerRating === null ? '· Nova firma' : <>· <Star className="mb-0.5 inline size-3.5 fill-[#ffcc73] text-[#ffcc73]" /> {shift.employerRating.toFixed(1)}</>}
+                  </span>
+                </span>
                 <span>{shift.dayLabel} · {shift.start}–{shift.end}</span>
               </div>
             </div>
             <div className="sm:text-right">
               <p className="font-display text-4xl font-black tracking-[-.05em]">€{shift.pay}</p>
-              <p className="mt-1 text-xs font-bold text-[#77f0bd]">{shift.tips ? '+ napojnice' : 'sigurna isplata'}</p>
+              <p className="mt-1 text-xs font-bold text-[#77f0bd]">ukupna naknada{shift.tips ? ' · moguće napojnice' : ''}</p>
             </div>
           </div>
           <div className="mt-6 flex flex-wrap gap-2">
@@ -94,7 +101,7 @@ export function ShiftCard({ shift, onClaim, featured = false, disabled = false }
           </div>
           <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
             <Button onClick={onClaim} disabled={disabled} className="claim-button h-12 min-w-52 rounded-xl bg-[#ff5b35] px-6 text-[15px] font-extrabold hover:bg-[#e94b27]">
-              <Zap className="fill-current" /> {disabled ? 'VEĆ IMAŠ SMJENU' : 'UZMI SMJENU'}
+              <Zap className="fill-current" /> {disabled ? (disabledLabel ?? 'NIJE DOSTUPNO') : 'UZMI SMJENU'}
             </Button>
             <span className="text-xs font-semibold text-white/50">
               {remainingSpots(shift)} od {shift.workersNeeded} mjesta · {shift.viewers} gleda
@@ -128,8 +135,8 @@ export function ShiftCard({ shift, onClaim, featured = false, disabled = false }
           <p className="font-display text-2xl font-black tracking-[-.04em]">€{shift.pay}</p>
           <p className="text-[11px] font-semibold text-slate-400">{shift.tips ? '+ napojnice' : 'ukupno'}</p>
         </div>
-        <Button onClick={onClaim} disabled={disabled} variant="outline" className="mt-2 h-9 rounded-xl px-4 font-bold group-hover:border-[#ffb6a4] group-hover:text-[#e94b27]">
-          Uzmi
+        <Button onClick={onClaim} disabled={disabled} variant="outline" className="mt-2 h-11 rounded-xl px-4 font-bold group-hover:border-[#ffb6a4] group-hover:text-[#e94b27]">
+          {disabled ? (disabledLabel ?? 'Nije dostupno') : 'Uzmi'}
         </Button>
       </div>
     </article>
@@ -140,7 +147,7 @@ export function FillProgress({ shift }: { shift: Shift }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs font-bold">
-        <span>{shift.claimedWorkers.length} / {shift.workersNeeded} popunjeno</span>
+        <span>{shift.claimedCount} / {shift.workersNeeded} popunjeno</span>
         <span className={remainingSpots(shift) === 0 ? 'text-[#77f0bd]' : 'text-white/50'}>
           {remainingSpots(shift) === 0 ? 'Smjena popunjena' : `Još ${remainingSpots(shift)}`}
         </span>

@@ -37,6 +37,7 @@ Quality checks:
 
 ```bash
 npm run lint
+npm test
 npm run build
 npm audit --omit=dev
 ```

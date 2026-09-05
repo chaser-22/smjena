@@ -11,7 +11,7 @@ const productionUrl = process.env.NEXT_PUBLIC_SITE_URL
 
 const title = "SMJENA — Radi danas. Zaradi danas.";
 const description =
-  "Hitne ugostiteljske smjene u Crnoj Gori. Pronađi provjerenog radnika ili uzmi smjenu u nekoliko minuta.";
+  "Hitne ugostiteljske smjene u Crnoj Gori. Objavi potrebu ili uzmi dostupnu smjenu bez oglasa i CV-a.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(productionUrl),
@@ -41,7 +41,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="sr-Latn-ME">
-      <body className="antialiased"><PwaRegister />{children}</body>
+      <body className="antialiased"><a href="#main-content" className="skip-link">Preskoči na glavni sadržaj</a><PwaRegister />{children}</body>
     </html>
   );
 }

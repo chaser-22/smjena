@@ -18,12 +18,15 @@ export type Shift = {
   bonus: number;
   tips: boolean;
   workersNeeded: number;
+  claimedCount: number;
   claimedWorkers: string[];
   urgent: boolean;
   audience: ShiftAudience;
   notifiedCount: number;
   viewers: number;
-  employerRating: number;
+  employerRating: number | null;
+  employerRatingCount: number;
+  employerVerified: boolean;
   status: ShiftStatus;
   requirements: string[];
   fillTime?: string;
@@ -36,15 +39,17 @@ export type WorkerProfile = {
   id: string;
   name: string;
   initials: string;
+  verified: boolean;
   score: number;
-  rating: number;
+  rating: number | null;
+  ratingCount: number;
   completedShifts: number;
-  attendance: number;
+  attendance: number | null;
   earningsWeek: number;
-  previousWeek: number;
+  paidWeek: number;
+  pendingWeek: number;
   available: boolean;
   notificationsEnabled: boolean;
-  premiumUnlocked: boolean;
   skills: string[];
   crewEmployers: string[];
 };
@@ -53,9 +58,13 @@ export type EmployerProfile = {
   id: string;
   name: string;
   city: string;
-  rating: number;
+  verified: boolean;
+  rating: number | null;
+  ratingCount: number;
   crewCount: number;
   completedShifts: number;
+  ledgerPending: number;
+  ledgerPaid: number;
   crewWorkers: Array<{ id: string; name: string; score: number; role: string }>;
   fillMedianMinutes: number | null;
   attendancePercent: number | null;
@@ -64,21 +73,11 @@ export type EmployerProfile = {
   cancellationRate: number | null;
 };
 
-export type CompletionReward = {
-  shiftId: string;
-  amount: number;
-  oldScore: number;
-  newScore: number;
-  rating: number;
-  unlocked: boolean;
-};
-
 export type SmjenaState = {
   shifts: Shift[];
   worker: WorkerProfile;
   employer: EmployerProfile;
   activeShiftId: string | null;
-  lastReward: CompletionReward | null;
 };
 
 export type NewShiftInput = {
@@ -111,9 +110,10 @@ export function employerShifts(state: SmjenaState) {
 }
 
 export function remainingSpots(shift: Shift) {
-  return Math.max(shift.workersNeeded - shift.claimedWorkers.length, 0);
+  return Math.max(shift.workersNeeded - shift.claimedCount, 0);
 }
 
 export function completionPercent(shift: Shift) {
-  return Math.min((shift.claimedWorkers.length / shift.workersNeeded) * 100, 100);
+  if (shift.workersNeeded <= 0) return 0;
+  return Math.min((shift.claimedCount / shift.workersNeeded) * 100, 100);
 }

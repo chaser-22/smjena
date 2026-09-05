@@ -12,6 +12,7 @@ import {
   Euro,
   Flame,
   Heart,
+  LoaderCircle,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -54,21 +55,24 @@ import { Avatar, FillProgress, Metric } from '@/components/smjena/shared';
 
 type EmployerDashboardProps = {
   state: SmjenaState;
-  onPost: (input: NewShiftInput) => string;
-  onRaisePay: (id: string) => void;
-  onBroadcast: (id: string) => void;
-  onReplacement: (id: string) => void;
-  onRate: (assignmentId: string, score: number, wantAgain: boolean) => void;
+  busy: boolean;
+  onPost: (input: NewShiftInput) => Promise<boolean>;
+  onRaisePay: (id: string) => Promise<boolean>;
+  onBroadcast: (id: string) => Promise<boolean>;
+  onReplacement: (id: string) => Promise<boolean>;
+  onRate: (assignmentId: string, score: number, wantAgain: boolean) => Promise<boolean>;
 };
 
-export function EmployerDashboard({ state, onPost, onRaisePay, onBroadcast, onReplacement, onRate }: EmployerDashboardProps) {
+export function EmployerDashboard({ state, busy, onPost, onRaisePay, onBroadcast, onReplacement, onRate }: EmployerDashboardProps) {
   const [postOpen, setPostOpen] = useState(false);
   const [crewOpen, setCrewOpen] = useState(false);
   const [ratingShift, setRatingShift] = useState<Shift | null>(null);
   const [templateShift, setTemplateShift] = useState<Shift | null>(null);
 
   const shifts = employerShifts(state);
-  const activeShifts = shifts.filter((shift) => ['open', 'claimed', 'in_progress'].includes(shift.status));
+  const activeShifts = shifts
+    .filter((shift) => ['open', 'claimed', 'in_progress'].includes(shift.status))
+    .sort((a, b) => (a.startsAt ?? '').localeCompare(b.startsAt ?? ''));
   const completedShifts = shifts.filter((shift) => shift.status === 'completed');
   const primaryShift = activeShifts[0];
 
@@ -77,9 +81,9 @@ export function EmployerDashboard({ state, onPost, onRaisePay, onBroadcast, onRe
     setPostOpen(true);
   };
 
-  const handlePost = (input: NewShiftInput) => {
-    onPost(input);
-    setPostOpen(false);
+  const handlePost = async (input: NewShiftInput) => {
+    const posted = await onPost(input);
+    if (posted) setPostOpen(false);
   };
 
   return (
@@ -88,27 +92,22 @@ export function EmployerDashboard({ state, onPost, onRaisePay, onBroadcast, onRe
         <div className="min-w-0">
           <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="eyebrow">{state.employer.name.toUpperCase()} · {state.employer.city.toUpperCase()}</p>
+              <p className="eyebrow flex items-center gap-1.5">{state.employer.name.toUpperCase()} · {state.employer.city.toUpperCase()}{state.employer.verified && <ShieldCheck className="size-3.5 text-emerald-600" aria-label="Verifikovan poslodavac" />}</p>
               <h1 className="font-display mt-2 text-[clamp(2rem,5vw,3.7rem)] font-black leading-[.95] tracking-[-0.055em]">
                 Fali ti <span className="text-[#ff5b35]">čovjek?</span>
               </h1>
-              <p className="mt-3 text-[15px] text-slate-500">Objavi smjenu. Pouzdani ljudi su već blizu.</p>
+              <p className="mt-3 text-[15px] text-slate-500">Objavi jasnu potrebu i prati svako popunjeno mjesto.</p>
             </div>
-            <Button onClick={() => openNewShift()} className="h-12 rounded-xl bg-[#ff5b35] px-5 text-sm font-extrabold shadow-[0_10px_30px_rgba(255,91,53,.22)] hover:bg-[#e94b27]"><Plus /> NOVA SMJENA</Button>
+            <Button onClick={() => openNewShift()} disabled={busy} className="h-12 rounded-xl bg-[#ff5b35] px-5 text-sm font-extrabold shadow-[0_10px_30px_rgba(255,91,53,.22)] hover:bg-[#e94b27]"><Plus /> NOVA SMJENA</Button>
           </div>
 
           {primaryShift ? (
             <EmployerHero
               shift={primaryShift}
-              onRaisePay={() => {
-                onRaisePay(primaryShift.id);
-              }}
-              onBroadcast={() => {
-                onBroadcast(primaryShift.id);
-              }}
-              onReplacement={() => {
-                onReplacement(primaryShift.id);
-              }}
+              busy={busy}
+              onRaisePay={() => onRaisePay(primaryShift.id)}
+              onBroadcast={() => onBroadcast(primaryShift.id)}
+              onReplacement={() => onReplacement(primaryShift.id)}
             />
           ) : (
             <NoActiveShift onPost={() => openNewShift()} />
@@ -119,9 +118,9 @@ export function EmployerDashboard({ state, onPost, onRaisePay, onBroadcast, onRe
             <Badge variant="outline" className="h-7 rounded-full bg-white px-3">{activeShifts.length} aktivna · {completedShifts.length} završena</Badge>
           </div>
           <div className="space-y-3">
-            {shifts.map((shift) => (
-              <EmployerShiftRow key={shift.id} shift={shift} onTemplate={() => openNewShift(shift)} onRate={() => setRatingShift(shift)} />
-            ))}
+            {shifts.length > 0 ? shifts.map((shift) => (
+              <EmployerShiftRow key={shift.id} shift={shift} busy={busy} onTemplate={() => openNewShift(shift)} onRate={() => setRatingShift(shift)} />
+            )) : <div className="rounded-[22px] border border-dashed border-slate-300 bg-white/60 p-7 text-center"><Clock3 className="mx-auto size-6 text-slate-400" /><p className="mt-3 text-sm font-extrabold">Još nema objavljenih smjena</p><p className="mt-1 text-xs text-slate-500">Prva objavljena smjena pojaviće se ovdje sa stvarnim statusom popunjavanja.</p></div>}
           </div>
 
           <section className="mt-9 rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
@@ -130,7 +129,7 @@ export function EmployerDashboard({ state, onPost, onRaisePay, onBroadcast, onRe
               <TimerReset className="size-6 text-[#ff5b35]" />
             </div>
             <div className="mt-6 grid gap-3 md:grid-cols-3">
-              <FlowStep number="01" title="Moji ljudi" copy={`${state.employer.crewCount} provjerenih radnika dobijaju prvi pristup.`} active />
+              <FlowStep number="01" title="Moji ljudi" copy={`${state.employer.crewCount} radnika koje želiš ponovo dobijaju prvi pristup.`} active />
               <FlowStep number="02" title="Javna mreža" copy="Ako ekipa ne popuni smjenu, objavi je svim dostupnim radnicima." />
               <FlowStep number="03" title="SOS cijena" copy="Povećaj ponudu dok tržište ne popuni smjenu." />
             </div>
@@ -147,13 +146,19 @@ export function EmployerDashboard({ state, onPost, onRaisePay, onBroadcast, onRe
           </div>
 
           <div className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between"><div><p className="text-sm font-extrabold">Moji ljudi</p><p className="mt-1 text-xs text-slate-500">{state.employer.crewCount} provjerena radnika</p></div><Heart className="size-5 fill-[#ffebe5] text-[#ff5b35]" /></div>
+            <div className="flex items-center justify-between"><div><p className="text-sm font-extrabold">Moji ljudi</p><p className="mt-1 text-xs text-slate-500">{state.employer.crewCount} radnika za ponovni angažman</p></div><Heart className="size-5 fill-[#ffebe5] text-[#ff5b35]" /></div>
             <div className="mt-5 flex items-center justify-between"><div className="flex -space-x-2">{state.employer.crewWorkers.slice(0, 3).map((worker, index) => <Avatar key={worker.id} initials={worker.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')} color={['bg-[#6e59db]', 'bg-[#ff8a59]', 'bg-[#16896c]'][index]} />)}{state.employer.crewCount > 3 && <Avatar initials={`+${state.employer.crewCount - 3}`} color="bg-slate-700" />}</div><ChevronRight className="size-5 text-slate-300" /></div>
-            <Button onClick={() => setCrewOpen(true)} variant="outline" className="mt-5 h-10 w-full rounded-xl font-bold"><Users /> Otvori ekipu</Button>
+            <Button onClick={() => setCrewOpen(true)} variant="outline" className="mt-5 h-11 w-full rounded-xl font-bold"><Users /> Otvori ekipu</Button>
           </div>
 
           <div className="rounded-[24px] border border-[#d6d7ff] bg-[#f1f0ff] p-5">
             <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#6e59db]" /><div><p className="text-sm font-extrabold">Brza potraga za zamjenom</p><p className="mt-1 text-xs leading-5 text-[#4e4790]">Kada se mjesto oslobodi, aktiviraj SOS potragu u javnoj mreži.</p></div></div>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between"><p className="text-sm font-extrabold">Obaveze prema radnicima</p><Euro className="size-4 text-[#ff5b35]" /></div>
+            <div className="mt-5 grid grid-cols-2 gap-4"><Metric value={`€${state.employer.ledgerPending}`} label="čeka obračun" /><Metric value={`€${state.employer.ledgerPaid}`} label="označeno plaćeno" /></div>
+            <p className="mt-4 border-t border-slate-100 pt-3 text-[10px] leading-4 text-slate-500">SMJENA vodi evidenciju obaveze. Oznaka u evidenciji sama ne izvršava bankovnu uplatu.</p>
           </div>
 
           <div className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm">
@@ -163,14 +168,14 @@ export function EmployerDashboard({ state, onPost, onRaisePay, onBroadcast, onRe
         </aside>
       </section>
 
-      <PostShiftDialog key={`${templateShift?.id ?? 'new'}-${postOpen}`} open={postOpen} onOpenChange={setPostOpen} template={templateShift} onPost={handlePost} />
+      <PostShiftDialog key={`${templateShift?.id ?? 'new'}-${postOpen}`} open={postOpen} onOpenChange={setPostOpen} template={templateShift} employerCity={state.employer.city} hasCrew={state.employer.crewCount > 0} onPost={handlePost} />
       <CrewDialog open={crewOpen} onOpenChange={setCrewOpen} workers={state.employer.crewWorkers} />
-      <RatingDialog key={ratingShift?.id ?? 'closed'} shift={ratingShift} onOpenChange={(open) => !open && setRatingShift(null)} onRate={onRate} />
+      <RatingDialog key={ratingShift?.id ?? 'closed'} shift={ratingShift} busy={busy} onOpenChange={(open) => !open && setRatingShift(null)} onRate={onRate} />
     </>
   );
 }
 
-function EmployerHero({ shift, onRaisePay, onBroadcast, onReplacement }: { shift: Shift; onRaisePay: () => void; onBroadcast: () => void; onReplacement: () => void }) {
+function EmployerHero({ shift, busy, onRaisePay, onBroadcast, onReplacement }: { shift: Shift; busy: boolean; onRaisePay: () => Promise<boolean>; onBroadcast: () => Promise<boolean>; onReplacement: () => Promise<boolean> }) {
   const full = remainingSpots(shift) === 0;
   return (
     <article className="overflow-hidden rounded-[30px] bg-[#101d34] text-white shadow-[0_28px_70px_rgba(16,29,52,.2)]">
@@ -181,88 +186,100 @@ function EmployerHero({ shift, onRaisePay, onBroadcast, onReplacement }: { shift
             <h2 className="font-display mt-3 text-3xl font-black tracking-[-.05em]">{shift.role} · {shift.dayLabel.toLowerCase()}</h2>
             <p className="mt-2 text-sm text-white/55">{shift.start}–{shift.end} · €{shift.pay} {shift.tips ? '+ napojnice' : ''} · {shift.workersNeeded} {shift.workersNeeded === 1 ? 'osoba' : 'osobe'}</p>
           </div>
-          <div className="rounded-2xl bg-white/[.07] px-5 py-4 text-center"><p className="font-display text-3xl font-black text-[#77f0bd]">{shift.claimedWorkers.length} / {shift.workersNeeded}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[.1em] text-white/45">mjesta popunjeno</p></div>
+          <div className="rounded-2xl bg-white/[.07] px-5 py-4 text-center"><p className="font-display text-3xl font-black text-[#77f0bd]">{shift.claimedCount} / {shift.workersNeeded}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[.1em] text-white/45">mjesta popunjeno</p></div>
         </div>
         <div className="mt-6"><FillProgress shift={shift} /></div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3"><HeroMetric icon={<Clock3 />} value={shift.fillTime ?? '2m 14s'} label="vrijeme do prvog claim-a" /><HeroMetric icon={<Users />} value={String(shift.notifiedCount)} label="obaviještenih radnika" /><HeroMetric icon={<BellRing />} value={shift.audience === 'crew' ? 'Moji ljudi' : 'Javna mreža'} label="trenutna publika" /></div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3"><HeroMetric icon={<Clock3 />} value={shift.fillTime ?? '—'} label={shift.fillTime ? 'vrijeme do pune smjene' : 'još nije potpuno popunjena'} /><HeroMetric icon={<Users />} value={String(shift.notifiedCount)} label="poslatih obavijesti" /><HeroMetric icon={<BellRing />} value={shift.audience === 'crew' ? 'Moji ljudi' : 'Javna mreža'} label="trenutna publika" /></div>
+        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[.04] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[.1em] text-white/45">Potvrđeni radnici</p>
+          {shift.assignments?.length ? <div className="mt-3 flex flex-wrap gap-2">{shift.assignments.map((assignment) => <span key={assignment.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/[.08] px-3 text-xs font-bold"><Avatar initials={assignment.workerName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')} size="sm" color="bg-[#16896c]" />{assignment.workerName}<Badge className="bg-white/10 text-white/70">{assignmentStatusLabel(assignment.status)}</Badge></span>)}</div> : <p className="mt-2 text-xs text-white/55">Još niko nije potvrdio dolazak. Svako zauzeto mjesto pojaviće se ovdje.</p>}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[.035] p-4 sm:px-7">
-        {!full && shift.audience === 'crew' && <Button onClick={onBroadcast} className="h-10 rounded-xl bg-white text-[#101d34] font-bold hover:bg-white/90"><BellRing /> Pošalji javnoj mreži</Button>}
-        {!full && <Button onClick={onRaisePay} className="h-10 rounded-xl bg-[#ff5b35] font-bold hover:bg-[#e94b27]"><Euro /> Povećaj za €10</Button>}
-        {shift.claimedWorkers.length < shift.workersNeeded && <Button onClick={onReplacement} variant="outline" className="h-10 rounded-xl border-white/15 bg-white/[.04] font-bold text-white hover:bg-white/10 hover:text-white"><RefreshCw /> Traži zamjenu</Button>}
+        {!full && shift.audience === 'crew' && <Button onClick={onBroadcast} disabled={busy} className="h-11 rounded-xl bg-white text-[#101d34] font-bold hover:bg-white/90"><BellRing /> Pošalji javnoj mreži</Button>}
+        {!full && <Button onClick={onRaisePay} disabled={busy} className="h-11 rounded-xl bg-[#ff5b35] font-bold hover:bg-[#e94b27]"><Euro /> Povećaj za €10</Button>}
+        {shift.claimedCount < shift.workersNeeded && <Button onClick={onReplacement} disabled={busy} variant="outline" className="h-11 rounded-xl border-white/15 bg-white/[.04] font-bold text-white hover:bg-white/10 hover:text-white"><RefreshCw /> Traži zamjenu</Button>}
         {full && <span className="flex items-center gap-2 text-sm font-extrabold text-[#77f0bd]"><CheckCircle2 className="size-5" /> Smjena je spremna</span>}
       </div>
     </article>
   );
 }
 
-function EmployerShiftRow({ shift, onTemplate, onRate }: { shift: Shift; onTemplate: () => void; onRate: () => void }) {
+function EmployerShiftRow({ shift, busy, onTemplate, onRate }: { shift: Shift; busy: boolean; onTemplate: () => void; onRate: () => void }) {
   const completed = shift.status === 'completed';
   return (
     <article className="rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className={`grid size-11 shrink-0 place-items-center rounded-2xl ${completed ? 'bg-emerald-100 text-emerald-700' : shift.urgent ? 'bg-[#fff0eb] text-[#ff5b35]' : 'bg-slate-100 text-slate-600'}`}>{completed ? <Check className="size-5" /> : shift.urgent ? <Zap className="size-5 fill-current" /> : <Clock3 className="size-5" />}</span>
-          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-display truncate text-lg font-black">{shift.role}</p>{shift.replacementActive && <Badge className="bg-[#fff0eb] text-[#e94b27]">Traži zamjenu</Badge>}</div><p className="mt-1 text-xs text-slate-500">{shift.dayLabel} · {shift.start}–{shift.end} · {completed ? (shift.fillTime ? `Popunjeno za ${shift.fillTime}` : 'Završena') : `${shift.claimedWorkers.length}/${shift.workersNeeded} popunjeno`}</p></div>
+          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-display truncate text-lg font-black">{shift.role}</p>{shift.replacementActive && <Badge className="bg-[#fff0eb] text-[#e94b27]">Traži zamjenu</Badge>}</div><p className="mt-1 text-xs text-slate-500">{shift.dayLabel} · {shift.start}–{shift.end} · {completed ? (shift.fillTime ? `Popunjeno za ${shift.fillTime}` : 'Završena') : `${shift.claimedCount}/${shift.workersNeeded} popunjeno`}</p></div>
         </div>
         <div className="flex items-center gap-2">
           {shift.claimedWorkers.length > 0 && <div className="mr-1 hidden -space-x-2 sm:flex">{shift.claimedWorkers.slice(0, 3).map((worker, index) => <Avatar key={worker} initials={worker.split(' ').map((part) => part[0]).join('')} color={['bg-[#6e59db]', 'bg-[#16896c]', 'bg-[#ff8a59]'][index]} />)}</div>}
-          {completed && shift.assignments?.some((assignment) => assignment.status === 'completed') && <Button onClick={onRate} variant="outline" className="h-9 rounded-xl font-bold"><Star /> Ocijeni</Button>}
-          <Button onClick={onTemplate} variant="outline" className="h-9 rounded-xl font-bold"><Copy /> Ponovi</Button>
+          {completed && shift.assignments?.some((assignment) => assignment.status === 'completed') && <Button onClick={onRate} disabled={busy} variant="outline" className="h-11 rounded-xl font-bold"><Star /> Ocijeni</Button>}
+          <Button onClick={onTemplate} disabled={busy} variant="outline" className="h-11 rounded-xl font-bold"><Copy /> Ponovi</Button>
         </div>
       </div>
     </article>
   );
 }
 
-function PostShiftDialog({ open, onOpenChange, template, onPost }: { open: boolean; onOpenChange: (open: boolean) => void; template: Shift | null; onPost: (input: NewShiftInput) => void }) {
+function PostShiftDialog({ open, onOpenChange, template, employerCity, hasCrew, onPost }: { open: boolean; onOpenChange: (open: boolean) => void; template: Shift | null; employerCity: string; hasCrew: boolean; onPost: (input: NewShiftInput) => Promise<void> }) {
   const [role, setRole] = useState(template?.role ?? roles[0]);
-  const [urgent, setUrgent] = useState(template?.urgent ?? true);
-  const [crewFirst, setCrewFirst] = useState(true);
+  const [urgent, setUrgent] = useState(template?.urgent ?? false);
+  const [crewFirst, setCrewFirst] = useState(hasCrew);
+  const [submitting, setSubmitting] = useState(false);
+  const timing = useMemo(() => defaultShiftTiming(), []);
 
   const defaults = useMemo(() => ({
-    workersNeeded: template?.workersNeeded ?? 2,
-    start: template?.start ?? '18:00',
-    end: template?.end ?? '00:00',
-    pay: template?.pay ?? 84,
-    area: template?.area ?? 'Stari grad, Budva',
-    date: template?.startsAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
-  }), [template]);
+    workersNeeded: template?.workersNeeded ?? 1,
+    start: template?.start ?? timing.start,
+    end: template?.end ?? timing.end,
+    pay: template?.pay,
+    area: template?.area ?? employerCity,
+    date: template?.startsAt ? montenegroDateInput(new Date(template.startsAt)) : timing.date,
+  }), [employerCity, template, timing]);
 
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
     const data = new FormData(event.currentTarget);
-    onPost({
-      role,
-      workersNeeded: Number(data.get('workersNeeded')),
-      start: String(data.get('start')),
-      end: String(data.get('end')),
-      pay: Number(data.get('pay')),
-      area: String(data.get('area')),
-      date: String(data.get('date')),
-      urgent,
-      crewFirst,
-    });
+    setSubmitting(true);
+    try {
+      await onPost({
+        role,
+        workersNeeded: Number(data.get('workersNeeded')),
+        start: String(data.get('start')),
+        end: String(data.get('end')),
+        pay: Number(data.get('pay')),
+        area: String(data.get('area')),
+        date: String(data.get('date')),
+        urgent,
+        crewFirst,
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!submitting) onOpenChange(nextOpen); }}>
       <DialogContent className="max-h-[92vh] overflow-y-auto rounded-[24px] p-0 sm:max-w-xl">
         <form key={template?.id ?? 'new'} onSubmit={submit}>
           <div className="p-6 pb-3">
-            <DialogHeader><div className="mb-2 grid size-11 place-items-center rounded-2xl bg-[#fff0eb] text-[#ff5b35]"><Zap className="size-5 fill-current" /></div><DialogTitle className="font-display text-2xl font-black tracking-[-.04em]">{template ? 'Ponovi smjenu' : 'Nova smjena'}</DialogTitle><DialogDescription>Objavi tačnu potrebu za manje od 30 sekundi. Bez oglasa i CV-a.</DialogDescription></DialogHeader>
+            <DialogHeader><div className="mb-2 grid size-11 place-items-center rounded-2xl bg-[#fff0eb] text-[#ff5b35]"><Zap className="size-5 fill-current" /></div><DialogTitle className="font-display text-2xl font-black tracking-[-.04em]">{template ? 'Ponovi smjenu' : 'Nova smjena'}</DialogTitle><DialogDescription>Unesi jasne uslove i objavi stvarnu potrebu u nekoliko koraka.</DialogDescription></DialogHeader>
             <FieldGroup className="mt-5 gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field><FieldLabel htmlFor="role">Uloga</FieldLabel><Select value={role} onValueChange={(value) => value && setRole(value)}><SelectTrigger id="role" className="h-11 w-full rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{roles.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></Field>
-                <Field><FieldLabel htmlFor="workersNeeded">Broj ljudi</FieldLabel><Input id="workersNeeded" name="workersNeeded" type="number" defaultValue={defaults.workersNeeded} min="1" max="20" className="h-11 rounded-xl" /></Field>
+                <Field><FieldLabel htmlFor="workersNeeded">Broj ljudi</FieldLabel><Input id="workersNeeded" name="workersNeeded" type="number" defaultValue={defaults.workersNeeded} min="1" max="20" required className="h-11 rounded-xl" /></Field>
               </div>
-              <div className="grid gap-4 sm:grid-cols-3"><Field><FieldLabel htmlFor="date">Datum</FieldLabel><Input id="date" name="date" type="date" defaultValue={defaults.date} required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="start">Početak</FieldLabel><Input id="start" name="start" type="time" defaultValue={defaults.start} required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="end">Završetak</FieldLabel><Input id="end" name="end" type="time" defaultValue={defaults.end} required className="h-11 rounded-xl" /></Field></div>
-              <div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel htmlFor="pay">Isplata po osobi (€)</FieldLabel><Input id="pay" name="pay" type="number" defaultValue={defaults.pay} min="20" required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="area">Lokacija</FieldLabel><Input id="area" name="area" defaultValue={defaults.area} required className="h-11 rounded-xl" /></Field></div>
-              <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#d6d7ff] bg-[#f7f6ff] p-4"><div className="flex items-start gap-3"><Users className="mt-0.5 size-5 text-[#6e59db]" /><div><p className="text-sm font-extrabold">Prvo pošalji Mojim ljudima</p><p className="mt-1 text-xs text-[#4e4790]">Javnu mrežu možeš uključiti jednim klikom ako treba još ljudi.</p></div></div><Switch checked={crewFirst} onCheckedChange={setCrewFirst} aria-label="Prvo pošalji Mojim ljudima" /></div>
+              <div className="grid gap-4 sm:grid-cols-3"><Field><FieldLabel htmlFor="date">Datum</FieldLabel><Input id="date" name="date" type="date" defaultValue={defaults.date} min={montenegroDateInput()} required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="start">Početak</FieldLabel><Input id="start" name="start" type="time" defaultValue={defaults.start} required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="end">Završetak</FieldLabel><Input id="end" name="end" type="time" defaultValue={defaults.end} required className="h-11 rounded-xl" /></Field></div>
+              <div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel htmlFor="pay">Ukupno po osobi (€)</FieldLabel><Input id="pay" name="pay" type="number" defaultValue={defaults.pay} min="20" step="1" placeholder="npr. 80" required className="h-11 rounded-xl" /></Field><Field><FieldLabel htmlFor="area">Tačna lokacija</FieldLabel><Input id="area" name="area" defaultValue={defaults.area} autoComplete="street-address" required className="h-11 rounded-xl" /></Field></div>
+              <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#d6d7ff] bg-[#f7f6ff] p-4"><div className="flex items-start gap-3"><Users className="mt-0.5 size-5 text-[#6e59db]" /><div><p className="text-sm font-extrabold">Prvo pošalji Mojim ljudima</p><p className="mt-1 text-xs text-[#4e4790]">{hasCrew ? 'Javnu mrežu možeš uključiti jednim klikom ako treba još ljudi.' : 'Dodaj radnike nakon završene smjene; za sada objavi javnoj mreži.'}</p></div></div><Switch checked={crewFirst} disabled={!hasCrew} onCheckedChange={setCrewFirst} aria-label="Prvo pošalji Mojim ljudima" /></div>
               <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#ffcfbf] bg-[#fff7f3] p-4"><div className="flex items-start gap-3"><Flame className="mt-0.5 size-5 fill-[#ff5b35] text-[#ff5b35]" /><div><p className="text-sm font-extrabold">SOS smjena</p><p className="mt-1 text-xs text-[#8c4a38]">Prioritetna obavijest radnicima u blizini · dodatak uračunat.</p></div></div><Switch checked={urgent} onCheckedChange={setUrgent} aria-label="Označi kao SOS smjenu" /></div>
             </FieldGroup>
           </div>
-          <DialogFooter className="rounded-b-[24px] p-4"><DialogClose render={<Button type="button" variant="outline" className="h-11 rounded-xl px-5" />}>Odustani</DialogClose><Button type="submit" className="h-11 flex-1 rounded-xl bg-[#ff5b35] font-extrabold hover:bg-[#e94b27]"><Zap className="fill-current" /> Objavi smjenu</Button></DialogFooter>
+          <DialogFooter className="rounded-b-[24px] p-4"><DialogClose disabled={submitting} render={<Button type="button" variant="outline" className="h-11 rounded-xl px-5" />}>Odustani</DialogClose><Button type="submit" disabled={submitting} className="h-11 flex-1 rounded-xl bg-[#ff5b35] font-extrabold hover:bg-[#e94b27]">{submitting ? <LoaderCircle className="animate-spin" /> : <Zap className="fill-current" />} {submitting ? 'Objavljujem…' : 'Objavi smjenu'}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -274,12 +291,12 @@ function CrewDialog({ open, onOpenChange, workers }: { open: boolean; onOpenChan
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="rounded-[24px] sm:max-w-md"><DialogHeader><DialogTitle className="font-display text-2xl font-black">Moji ljudi</DialogTitle><DialogDescription>Radnici koje si ocijenio sa “želim ponovo”. Oni prvi vide tvoje smjene.</DialogDescription></DialogHeader>{workers.length ? <div className="space-y-2">{workers.map((worker, index) => <div key={worker.id} className="flex items-center justify-between rounded-2xl border border-slate-100 p-3"><div className="flex items-center gap-3"><Avatar initials={worker.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')} color={colors[index % colors.length]} /><div><p className="text-sm font-extrabold">{worker.name}</p><p className="text-xs text-slate-500">{worker.role} · Score {worker.score}</p></div></div><ChevronRight className="size-5 text-slate-300" /></div>)}</div> : <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center"><Users className="mx-auto size-6 text-slate-300" /><p className="mt-3 text-sm font-bold">Još nema radnika u ekipi</p><p className="mt-1 text-xs text-slate-500">Ocijeni završen angažman i uključi “Želim ponovo”.</p></div>}</DialogContent></Dialog>;
 }
 
-function RatingDialog({ shift, onOpenChange, onRate }: { shift: Shift | null; onOpenChange: (open: boolean) => void; onRate: (assignmentId: string, score: number, wantAgain: boolean) => void }) {
+function RatingDialog({ shift, busy, onOpenChange, onRate }: { shift: Shift | null; busy: boolean; onOpenChange: (open: boolean) => void; onRate: (assignmentId: string, score: number, wantAgain: boolean) => Promise<boolean> }) {
   const assignments = shift?.assignments?.filter((assignment) => assignment.status === 'completed') ?? [];
   const [assignmentId, setAssignmentId] = useState(assignments[0]?.id ?? '');
   const [rating, setRating] = useState(5);
   const [wantAgain, setWantAgain] = useState(true);
-  return <Dialog open={Boolean(shift)} onOpenChange={onOpenChange}><DialogContent className="rounded-[24px] text-center sm:max-w-sm"><DialogHeader className="items-center"><div className="grid size-12 place-items-center rounded-2xl bg-[#fff6da] text-[#d99400]"><Star className="size-6 fill-current" /></div><DialogTitle className="font-display mt-2 text-2xl font-black">Kako je radnik odradio?</DialogTitle><DialogDescription>Tvoja ocjena gradi pouzdanost cijele mreže.</DialogDescription></DialogHeader>{assignments.length > 1 && <div className="flex flex-wrap justify-center gap-2">{assignments.map((assignment) => <button key={assignment.id} onClick={() => setAssignmentId(assignment.id)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${assignmentId === assignment.id ? 'bg-[#101d34] text-white' : 'bg-slate-100 text-slate-600'}`}>{assignment.workerName}</button>)}</div>}<p className="text-sm font-extrabold">{assignments.find((assignment) => assignment.id === assignmentId)?.workerName}</p><div className="flex justify-center gap-1">{[1, 2, 3, 4, 5].map((value) => <button key={value} onClick={() => setRating(value)} aria-label={`${value} zvjezdica`} className="p-1"><Star className={`size-8 ${value <= rating ? 'fill-[#ffbd3f] text-[#ffbd3f]' : 'text-slate-200'}`} /></button>)}</div><div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4 text-left"><div><p className="text-sm font-extrabold">Želim ponovo</p><p className="mt-1 text-xs text-slate-500">Dodaj radnika u Moje ljude</p></div><Switch checked={wantAgain} onCheckedChange={setWantAgain} aria-label="Dodaj u Moje ljude" /></div><Button disabled={!assignmentId} onClick={() => { onRate(assignmentId, rating, wantAgain); onOpenChange(false); }} className="h-11 rounded-xl bg-[#ff5b35] font-bold hover:bg-[#e94b27]">Sačuvaj ocjenu</Button></DialogContent></Dialog>;
+  return <Dialog open={Boolean(shift)} onOpenChange={onOpenChange}><DialogContent className="rounded-[24px] text-center sm:max-w-sm"><DialogHeader className="items-center"><div className="grid size-12 place-items-center rounded-2xl bg-[#fff6da] text-[#d99400]"><Star className="size-6 fill-current" /></div><DialogTitle className="font-display mt-2 text-2xl font-black">Kako je radnik odradio?</DialogTitle><DialogDescription>Tvoja ocjena gradi pouzdanost cijele mreže.</DialogDescription></DialogHeader>{assignments.length > 1 && <div className="flex flex-wrap justify-center gap-2">{assignments.map((assignment) => <button key={assignment.id} disabled={busy} onClick={() => setAssignmentId(assignment.id)} className={`min-h-11 rounded-full px-3 py-1.5 text-xs font-bold ${assignmentId === assignment.id ? 'bg-[#101d34] text-white' : 'bg-slate-100 text-slate-600'}`}>{assignment.workerName}</button>)}</div>}<p className="text-sm font-extrabold">{assignments.find((assignment) => assignment.id === assignmentId)?.workerName}</p><div className="flex justify-center gap-1">{[1, 2, 3, 4, 5].map((value) => <button key={value} disabled={busy} onClick={() => setRating(value)} aria-label={`${value} zvjezdica`} className="grid size-11 place-items-center rounded-lg"><Star className={`size-8 ${value <= rating ? 'fill-[#ffbd3f] text-[#ffbd3f]' : 'text-slate-200'}`} /></button>)}</div><div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4 text-left"><div><p className="text-sm font-extrabold">Želim ponovo</p><p className="mt-1 text-xs text-slate-500">Dodaj radnika u Moje ljude</p></div><Switch checked={wantAgain} disabled={busy} onCheckedChange={setWantAgain} aria-label="Dodaj u Moje ljude" /></div><Button disabled={!assignmentId || busy} onClick={async () => { if (await onRate(assignmentId, rating, wantAgain)) onOpenChange(false); }} className="h-11 rounded-xl bg-[#ff5b35] font-bold hover:bg-[#e94b27]">{busy ? 'Čuvam…' : 'Sačuvaj ocjenu'}</Button></DialogContent></Dialog>;
 }
 
 function HeroMetric({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
@@ -291,9 +308,37 @@ function FlowStep({ number, title, copy, active }: { number: string; title: stri
 }
 
 function NoActiveShift({ onPost }: { onPost: () => void }) {
-  return <div className="rounded-[30px] border border-dashed border-slate-300 bg-white p-10 text-center"><CheckCircle2 className="mx-auto size-8 text-emerald-500" /><h2 className="font-display mt-4 text-2xl font-black">Nema aktivnih smjena</h2><p className="mx-auto mt-2 max-w-md text-sm text-slate-500">Objavi stvarnu potrebu i prati popunjavanje u realnom vremenu.</p><div className="mt-5 flex justify-center"><Button onClick={onPost} className="rounded-xl bg-[#ff5b35] hover:bg-[#e94b27]"><Plus /> Nova smjena</Button></div></div>;
+  return <div className="rounded-[30px] border border-dashed border-slate-300 bg-white p-10 text-center"><CheckCircle2 className="mx-auto size-8 text-emerald-500" /><h2 className="font-display mt-4 text-2xl font-black">Nema aktivnih smjena</h2><p className="mx-auto mt-2 max-w-md text-sm text-slate-500">Objavi stvarnu potrebu i prati popunjavanje u realnom vremenu.</p><div className="mt-5 flex justify-center"><Button onClick={onPost} className="h-11 rounded-xl bg-[#ff5b35] hover:bg-[#e94b27]"><Plus /> Nova smjena</Button></div></div>;
 }
 
 function metricPercent(value: number | null) {
   return value === null ? '—' : `${value}%`;
+}
+
+function assignmentStatusLabel(status: string) {
+  if (status === 'checked_in') return 'Stigao';
+  if (status === 'completed') return 'Završio';
+  return 'Potvrdio';
+}
+
+function montenegroDateInput(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Podgorica',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function defaultShiftTiming() {
+  const start = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  start.setUTCMinutes(0, 0, 0);
+  const end = new Date(start.getTime() + 6 * 60 * 60 * 1000);
+  const time = (date: Date) => new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Podgorica',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+  return { date: montenegroDateInput(start), start: time(start), end: time(end) };
 }

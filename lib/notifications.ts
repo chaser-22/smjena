@@ -46,7 +46,7 @@ export async function notifyAvailableWorkers(shift: ShiftNotification) {
     body: `${shift.role} · ${shift.area} · €${shift.payCents / 100} · ${start}`,
     icon: '/favicon.svg',
     badge: '/favicon.svg',
-    url: `/dashboard?shift=${shift.id}`,
+    url: `/dashboard?shift=${shift.id}&source=push`,
   });
 
   const results = await Promise.all(subscriptions.map(async (subscription) => {

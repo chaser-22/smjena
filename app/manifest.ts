@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "SMJENA — hitne smjene bez čekanja",
     short_name: "SMJENA",
     description:
-      "Najbrži način da poslodavci u Crnoj Gori popune hitnu smjenu, a provjereni radnici odmah zarade.",
+      "Hitne ugostiteljske smjene u Crnoj Gori, sa jasnim uslovima i stvarnim statusom popunjavanja.",
     start_url: "/",
     display: "standalone",
     background_color: "#f4f1eb",
