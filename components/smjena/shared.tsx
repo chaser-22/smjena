@@ -104,7 +104,7 @@ export function ShiftCard({ shift, onClaim, featured = false, disabled = false, 
               <Zap className="fill-current" /> {disabled ? (disabledLabel ?? 'NIJE DOSTUPNO') : 'UZMI SMJENU'}
             </Button>
             <span className="text-xs font-semibold text-white/50">
-              {remainingSpots(shift)} od {shift.workersNeeded} mjesta · {shift.viewers} gleda
+              {remainingSpots(shift)} od {shift.workersNeeded} mjesta slobodno
             </span>
           </div>
         </div>

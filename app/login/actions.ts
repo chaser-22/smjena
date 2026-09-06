@@ -1,25 +1,13 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { z } from 'zod';
+import { parseAuthSubmission } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-
-const LoginSchema = z
-  .object({
-    email: z.email('Unesi ispravnu email adresu.'),
-    fullName: z.string().trim().min(2, 'Unesi ime i prezime.').max(80),
-    role: z.enum(['worker', 'employer']),
-    companyName: z.string().trim().max(120).optional(),
-    city: z.enum(['Budva', 'Podgorica', 'Tivat', 'Kotor', 'Herceg Novi', 'Bar', 'Nikšić']),
-  })
-  .refine((value) => value.role !== 'employer' || Boolean(value.companyName), {
-    message: 'Unesi naziv firme ili lokala.',
-    path: ['companyName'],
-  });
 
 export type LoginState = {
   status: 'idle' | 'success' | 'error';
   message?: string;
+  email?: string;
   errors?: Record<string, string[]>;
 };
 
@@ -27,13 +15,16 @@ export async function requestMagicLink(
   _previousState: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const parsed = LoginSchema.safeParse({
+  const intent = formData.get('intent') === 'register' ? 'register' : 'login';
+  const submitted = {
+    intent,
     email: formData.get('email'),
     fullName: formData.get('fullName'),
     role: formData.get('role'),
     companyName: formData.get('companyName') || undefined,
     city: formData.get('city'),
-  });
+  };
+  const parsed = parseAuthSubmission(submitted);
 
   if (!parsed.success) {
     return {
@@ -55,24 +46,35 @@ export async function requestMagicLink(
   }
 
   const supabase = await createClient();
+  const registration = parsed.data.intent === 'register' ? parsed.data : null;
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
     options: {
       emailRedirectTo: `${origin}/auth/callback`,
-      shouldCreateUser: true,
-      data: {
-        full_name: parsed.data.fullName,
-        role: parsed.data.role,
-        company_name: parsed.data.companyName,
-        city: parsed.data.city,
-      },
+      shouldCreateUser: Boolean(registration),
+      ...(registration ? {
+        data: {
+          full_name: registration.fullName,
+          role: registration.role,
+          company_name: registration.companyName,
+          city: registration.city,
+        },
+      } : {}),
     },
   });
 
-  if (error) return { status: 'error', message: 'Prijava trenutno nije dostupna. Pokušaj ponovo.' };
+  if (error) {
+    return {
+      status: 'error',
+      message: intent === 'login'
+        ? 'Nijesmo poslali link. Provjeri email ili izaberi „Napravi nalog“ ako si ovdje prvi put.'
+        : 'Registracija trenutno nije dostupna. Sačekaj minut i pokušaj ponovo.',
+    };
+  }
 
   return {
     status: 'success',
-    message: `Siguran link za prijavu je poslat na ${parsed.data.email}.`,
+    email: parsed.data.email,
+    message: `Siguran link je poslat na ${parsed.data.email}.`,
   };
 }

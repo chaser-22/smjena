@@ -6,11 +6,12 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { recordProductEvent } from '@/lib/product-events';
 import type { NewShiftInput } from '@/lib/smjena';
-import { notifyAvailableWorkers } from '@/lib/notifications';
+import { notifyAvailableWorkers, notifyShiftCancellation } from '@/lib/notifications';
 
-export type ActionResult = { ok: true; amount?: number } | { ok: false; error: string };
+export type ActionResult = { ok: true; amount?: number; count?: number } | { ok: false; error: string };
 
 const ShiftSchema = z.object({
+  requestId: z.uuid(),
   role: z.string().trim().min(2).max(80),
   workersNeeded: z.number().int().min(1).max(50),
   date: z.iso.date(),
@@ -68,6 +69,7 @@ export async function cancelAssignmentAction(shiftId: string): Promise<ActionRes
   });
   if (error) return databaseFailure(error.message);
   await recordProductEvent({ userId: context.userId, actorRole: 'worker', eventName: 'shift_cancelled', subjectId: shiftId });
+  await notifyShift(context.supabase, shiftId);
   revalidatePath('/dashboard');
   return { ok: true };
 }
@@ -97,7 +99,8 @@ export async function setNotificationsAction(enabled: boolean, subscription?: Pu
     }, { onConflict: 'user_id,endpoint' });
     if (subscriptionError) return databaseFailure(subscriptionError.message);
   } else {
-    await context.supabase.from('push_subscriptions').delete().eq('user_id', context.userId);
+    const { error: deleteError } = await context.supabase.from('push_subscriptions').delete().eq('user_id', context.userId);
+    if (deleteError) return databaseFailure(deleteError.message);
   }
   const { error } = await context.supabase.from('worker_profiles').update({ notifications_enabled: enabled, updated_at: new Date().toISOString() }).eq('user_id', context.userId);
   if (error) return databaseFailure(error.message);
@@ -120,6 +123,14 @@ export async function postShiftAction(input: NewShiftInput): Promise<ActionResul
     .single();
   if (membershipError || !membership) return failure('Nalog nije povezan sa poslodavcem.');
 
+  const { data: existingShift } = await context.supabase
+    .from('shifts')
+    .select('id')
+    .eq('employer_id', membership.employer_id)
+    .eq('request_id', parsed.data.requestId)
+    .maybeSingle();
+  if (existingShift) return { ok: true };
+
   const startsAt = montenegroDate(parsed.data.date, parsed.data.start);
   let endsAt = montenegroDate(parsed.data.date, parsed.data.end);
   if (endsAt <= startsAt) {
@@ -132,8 +143,9 @@ export async function postShiftAction(input: NewShiftInput): Promise<ActionResul
 
   const payCents = Math.round(parsed.data.pay * 100);
   const bonusCents = parsed.data.urgent ? Math.min(1500, payCents - 2000) : 0;
-  const { data: createdShiftId, error } = await context.supabase.rpc('create_shift_with_details', {
+  const { data: createdShiftId, error } = await context.supabase.rpc('publish_shift', {
     target_employer_id: membership.employer_id,
+    publish_request_id: parsed.data.requestId,
     shift_role: parsed.data.role,
     shift_area: parsed.data.area,
     shift_starts_at: startsAt.toISOString(),
@@ -168,6 +180,90 @@ export async function postShiftAction(input: NewShiftInput): Promise<ActionResul
   return { ok: true };
 }
 
+export async function cancelShiftAction(shiftId: string): Promise<ActionResult> {
+  const parsed = z.uuid().safeParse(shiftId);
+  if (!parsed.success) return failure('Smjena nije ispravna.');
+  const context = await requireRole('employer');
+  if (!context.ok) return context;
+
+  const { data: shift } = await context.supabase
+    .from('shifts')
+    .select('id, role, starts_at')
+    .eq('id', parsed.data)
+    .single();
+  if (!shift) return failure('Smjena nije pronađena.');
+
+  const { data: affectedWorkers, error } = await context.supabase.rpc('cancel_shift', { target_shift_id: parsed.data });
+  if (error) return databaseFailure(error.message);
+  const { data: assignments } = await context.supabase
+    .from('shift_assignments')
+    .select('worker_id')
+    .eq('shift_id', parsed.data)
+    .eq('status', 'cancelled')
+    .eq('cancellation_reason', 'Poslodavac je otkazao smjenu');
+
+  await recordProductEvent({
+    userId: context.userId,
+    actorRole: 'employer',
+    eventName: 'shift_cancelled_by_employer',
+    subjectId: parsed.data,
+  });
+  await notifyShiftCancellation({
+    shiftId: parsed.data,
+    role: shift.role,
+    startsAt: shift.starts_at,
+    workerIds: (assignments ?? []).map((assignment) => assignment.worker_id),
+  });
+  revalidatePath('/dashboard');
+  return { ok: true, count: Number(affectedWorkers ?? 0) };
+}
+
+export async function markNoShowAction(assignmentId: string): Promise<ActionResult> {
+  const parsed = z.uuid().safeParse(assignmentId);
+  if (!parsed.success) return failure('Angažman nije ispravan.');
+  const context = await requireRole('employer');
+  if (!context.ok) return context;
+  const { data: shiftId, error } = await context.supabase.rpc('mark_assignment_no_show', {
+    target_assignment_id: parsed.data,
+  });
+  if (error) return databaseFailure(error.message);
+  await recordProductEvent({
+    userId: context.userId,
+    actorRole: 'employer',
+    eventName: 'worker_marked_no_show',
+    subjectId: parsed.data,
+  });
+  if (shiftId) await notifyShift(context.supabase, String(shiftId));
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+export async function authorizePaymentAction(assignmentId: string): Promise<ActionResult> {
+  const parsed = z.uuid().safeParse(assignmentId);
+  if (!parsed.success) return failure('Angažman nije ispravan.');
+  const context = await requireRole('employer');
+  if (!context.ok) return context;
+  const { data: existingLedger } = await context.supabase
+    .from('payment_ledger')
+    .select('status')
+    .eq('assignment_id', parsed.data)
+    .maybeSingle();
+  const { data, error } = await context.supabase.rpc('authorize_assignment_payment', {
+    target_assignment_id: parsed.data,
+  });
+  if (error) return databaseFailure(error.message);
+  if (existingLedger?.status === 'pending') {
+    await recordProductEvent({
+      userId: context.userId,
+      actorRole: 'employer',
+      eventName: 'payment_authorized',
+      subjectId: parsed.data,
+    });
+  }
+  revalidatePath('/dashboard');
+  return { ok: true, amount: Number(data) / 100 };
+}
+
 export async function raiseShiftPayAction(shiftId: string): Promise<ActionResult> {
   const context = await requireRole('employer');
   if (!context.ok) return context;
@@ -186,16 +282,6 @@ export async function broadcastShiftAction(shiftId: string): Promise<ActionResul
   if (error) return databaseFailure(error.message);
   await recordProductEvent({ userId: context.userId, actorRole: 'employer', eventName: 'shift_broadcast', subjectId: shiftId });
   await notifyShift(context.supabase, shiftId);
-  revalidatePath('/dashboard');
-  return { ok: true };
-}
-
-export async function requestReplacementAction(shiftId: string): Promise<ActionResult> {
-  const context = await requireRole('employer');
-  if (!context.ok) return context;
-  const { error } = await context.supabase.rpc('request_shift_replacement', { target_shift_id: shiftId });
-  if (error) return databaseFailure(error.message);
-  await recordProductEvent({ userId: context.userId, actorRole: 'employer', eventName: 'replacement_requested', subjectId: shiftId });
   revalidatePath('/dashboard');
   return { ok: true };
 }
@@ -243,8 +329,8 @@ async function findActiveAssignment(supabase: Awaited<ReturnType<typeof createCl
 }
 
 async function notifyShift(supabase: Awaited<ReturnType<typeof createClient>>, shiftId: string) {
-  const { data: shift } = await supabase.from('shifts').select('id, employer_id, role, area, city, pay_cents, starts_at, audience').eq('id', shiftId).single();
-  if (!shift) return;
+  const { data: shift } = await supabase.from('shifts').select('id, employer_id, role, area, city, pay_cents, starts_at, audience, status').eq('id', shiftId).single();
+  if (!shift || shift.status !== 'published') return;
   await notifyAvailableWorkers({ id: shift.id, employerId: shift.employer_id, role: shift.role, area: shift.area, city: shift.city, payCents: shift.pay_cents, startsAt: shift.starts_at, audience: shift.audience });
 }
 
@@ -261,6 +347,14 @@ function databaseFailure(message: string): { ok: false; error: string } {
     'Check-out is not available yet': 'Završetak možeš evidentirati najranije 30 minuta prije planiranog kraja.',
     'Shift is not available': 'Ova smjena više nije dostupna.',
     'No open replacement position': 'Sva mjesta su trenutno pokrivena.',
+    'Shift cannot be cancelled': 'Smjenu možeš otkazati samo prije početka.',
+    'Shift publishing rate limit reached': 'Objavljeno je previše smjena u kratkom periodu. Sačekaj prije nove objave.',
+    'Payment cannot be authorized': 'Ovu obavezu nije moguće potvrditi u trenutnom statusu.',
+    'Assignment cannot be marked no show': 'Nedolazak nije moguće evidentirati za ovaj angažman.',
+    'No show is not available yet': 'Nedolazak možeš evidentirati tek kada smjena počne.',
+    'Worker already responded to shift': 'Već si odgovorio na ovu smjenu.',
+    'No cancelled assignment': 'Zamjena je dostupna tek kada se prethodno mjesto oslobodi.',
+    'Assignment cannot be cancelled': 'Ovaj angažman više nije moguće otkazati. Ako ne možeš doći, odmah kontaktiraj poslodavca.',
   };
   return { ok: false, error: friendly[message] ?? 'Nijesmo mogli potvrditi akciju. Pokušaj ponovo; ako se problem ponavlja, javi podršci.' };
 }

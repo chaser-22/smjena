@@ -35,10 +35,10 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   const weekStart = startOfWeek(now);
   const [workerResult, feedResult, assignmentResult, trustedResult, ledgerResult] = await Promise.all([
     supabase.from('worker_profiles').select('*').eq('user_id', userId).single(),
-    supabase.from('shifts').select('*').eq('status', 'published').eq('city', String(profile.city)).gt('starts_at', now.toISOString()).order('starts_at').limit(50),
+    supabase.from('shifts').select('*').eq('status', 'published').eq('city', String(profile.city)).gt('ends_at', now.toISOString()).order('starts_at').limit(50),
     supabase.from('shift_assignments').select('*').eq('worker_id', userId).order('claimed_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('employer_id').eq('worker_id', userId),
-    supabase.from('payment_ledger').select('amount_cents, created_at, status').eq('worker_id', userId).gte('created_at', weekStart.toISOString()),
+    supabase.from('payment_ledger').select('assignment_id, amount_cents, created_at, status').eq('worker_id', userId).order('created_at', { ascending: false }).limit(200),
   ]);
 
   if (workerResult.error || !workerResult.data) throw new Error('Radnički profil nije pronađen.');
@@ -60,11 +60,35 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   if (employerResult.error) throw employerResult.error;
 
   const employers = new Map(((employerResult.data ?? []) as Row[]).map((row) => [String(row.id), row]));
-  const assignmentByShift = new Map(assignments.map((row) => [String(row.shift_id), row]));
-  const shifts = shiftRows.map((row) => mapShift(row, employers.get(String(row.employer_id)), assignmentByShift.get(String(row.id))));
-  const activeAssignment = assignments.find((row) => ['claimed', 'checked_in'].includes(String(row.status)));
+  const assignmentByShift = new Map<string, Row>();
+  assignments.forEach((row) => {
+    const shiftId = String(row.shift_id);
+    if (!assignmentByShift.has(shiftId)) assignmentByShift.set(shiftId, row);
+  });
   const workerRow = workerResult.data as Row;
   const ledgerRows = (ledgerResult.data ?? []) as Row[];
+  const ledgerByAssignment = new Map(ledgerRows.map((row) => [String(row.assignment_id), String(row.status)]));
+  const shifts = shiftRows
+    .map((row) => {
+      const assignment = assignmentByShift.get(String(row.id));
+      return mapShift(
+        row,
+        employers.get(String(row.employer_id)),
+        assignment,
+        undefined,
+        assignment ? ledgerByAssignment.get(String(assignment.id)) : undefined,
+      );
+    })
+    .sort((left, right) => (left.startsAt ?? '').localeCompare(right.startsAt ?? ''));
+  const assignedShiftRows = new Map(shiftRows.map((row) => [String(row.id), row]));
+  const activeAssignment = assignments
+    .filter((row) => ['claimed', 'checked_in'].includes(String(row.status)))
+    .sort((left, right) => {
+      if (left.status === 'checked_in') return -1;
+      if (right.status === 'checked_in') return 1;
+      return String(assignedShiftRows.get(String(left.shift_id))?.starts_at ?? '')
+        .localeCompare(String(assignedShiftRows.get(String(right.shift_id))?.starts_at ?? ''));
+    })[0];
   const trustedEmployerIds = (trustedResult.data ?? []).map((row) => String((row as Row).employer_id));
   const trustedEmployerResult = trustedEmployerIds.length
     ? await supabase.from('employer_marketplace_profiles').select('name').in('id', trustedEmployerIds)
@@ -79,10 +103,12 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
     rating: Number(workerRow.rating_count) > 0 ? Number(workerRow.average_rating) : null,
     ratingCount: Number(workerRow.rating_count),
     completedShifts: Number(workerRow.completed_shifts),
-    attendance: Number(workerRow.completed_shifts) > 0 ? Number(workerRow.attendance_percent) : null,
+    scoreKnown: assignments.some((row) => ['completed', 'no_show'].includes(String(row.status))),
+    attendance: assignments.some((row) => ['completed', 'no_show'].includes(String(row.status))) ? Number(workerRow.attendance_percent) : null,
     earningsWeek: sumLedger(ledgerRows, weekStart, now, ['pending', 'authorized', 'paid']),
     paidWeek: sumLedger(ledgerRows, weekStart, now, ['paid']),
-    pendingWeek: sumLedger(ledgerRows, weekStart, now, ['pending', 'authorized']),
+    pendingWeek: sumLedger(ledgerRows, weekStart, now, ['pending']),
+    authorizedWeek: sumLedger(ledgerRows, weekStart, now, ['authorized']),
     available: Boolean(workerRow.available),
     notificationsEnabled: Boolean(workerRow.notifications_enabled),
     skills: Array.isArray(workerRow.skills) ? workerRow.skills.map(String) : [],
@@ -118,7 +144,7 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     supabase.from('employers').select('*').eq('id', employerId).single(),
     supabase.from('shifts').select('*').eq('employer_id', employerId).order('starts_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('worker_id').eq('employer_id', employerId),
-    supabase.from('payment_ledger').select('amount_cents, status').eq('employer_id', employerId),
+    supabase.from('payment_ledger').select('assignment_id, amount_cents, status').eq('employer_id', employerId),
   ]);
   if (employerResult.error || !employerResult.data) throw new Error('Poslodavac nije pronađen.');
   if (shiftResult.error) throw shiftResult.error;
@@ -131,6 +157,7 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     : { data: [], error: null };
   if (assignmentsResult.error) throw assignmentsResult.error;
   const assignments = (assignmentsResult.data ?? []) as Row[];
+  const ledgerByAssignment = new Map(((ledgerResult.data ?? []) as Row[]).map((row) => [String(row.assignment_id), String(row.status)]));
 
   const workerIds = [...new Set([
     ...assignments.map((row) => String(row.worker_id)),
@@ -163,7 +190,8 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     ratingCount: Number(employerRow.rating_count),
     crewCount: (trustedResult.data ?? []).length,
     completedShifts: Number(employerRow.completed_shifts),
-    ledgerPending: sumLedgerStatuses((ledgerResult.data ?? []) as Row[], ['pending', 'authorized']),
+    ledgerAwaiting: sumLedgerStatuses((ledgerResult.data ?? []) as Row[], ['pending']),
+    ledgerAuthorized: sumLedgerStatuses((ledgerResult.data ?? []) as Row[], ['authorized']),
     ledgerPaid: sumLedgerStatuses((ledgerResult.data ?? []) as Row[], ['paid']),
     crewWorkers: (trustedResult.data ?? []).map((row) => {
       const id = String((row as Row).worker_id);
@@ -179,13 +207,16 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
 
   const employerSummary = { id: employerId, name: employer.name, average_rating: employer.rating, rating_count: employer.ratingCount, verified_at: employer.verified ? true : null };
   const shifts = shiftRows.map((row) => {
-    const activeAssignments = (assignmentsByShift.get(String(row.id)) ?? []).filter((assignment) => !['cancelled', 'no_show'].includes(String(assignment.status)));
+    const allAssignments = assignmentsByShift.get(String(row.id)) ?? [];
+    const activeAssignments = allAssignments.filter((assignment) => !['cancelled', 'no_show'].includes(String(assignment.status)));
     const mapped = mapShift(row, employerSummary, undefined, activeAssignments.map((assignment) => workerNames.get(String(assignment.worker_id)) ?? 'Radnik'));
-    mapped.assignments = activeAssignments.map((assignment) => ({
+    mapped.assignments = allAssignments.map((assignment) => ({
       id: String(assignment.id),
       workerId: String(assignment.worker_id),
       workerName: workerNames.get(String(assignment.worker_id)) ?? 'Radnik',
       status: String(assignment.status),
+      pay: Number(assignment.pay_cents) / 100,
+      paymentStatus: normalizeLedgerStatus(ledgerByAssignment.get(String(assignment.id))),
     }));
     return mapped;
   });
@@ -199,12 +230,20 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
   };
 }
 
-function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimedNames?: string[]): Shift {
+function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimedNames?: string[], paymentStatus?: string): Shift {
   const startsAt = new Date(String(row.starts_at));
   const endsAt = new Date(String(row.ends_at));
   const claimedCount = Number(row.claimed_count ?? claimedNames?.length ?? 0);
   const names = claimedNames ?? [];
-  const status = assignment?.status === 'checked_in' ? 'in_progress' : assignment?.status === 'claimed' ? 'claimed' : mapStatus(String(row.status));
+  const status = assignment?.status === 'checked_in'
+    ? 'in_progress'
+    : assignment?.status === 'claimed'
+      ? 'claimed'
+      : assignment?.status === 'completed'
+        ? 'completed'
+        : ['cancelled', 'no_show'].includes(String(assignment?.status))
+          ? 'cancelled'
+          : mapStatus(String(row.status));
 
   return {
     id: String(row.id),
@@ -218,6 +257,7 @@ function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimed
     end: timeLabel(endsAt),
     startsIn: relativeTime(startsAt),
     startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
     pay: Number(row.pay_cents) / 100,
     basePay: Number(row.base_pay_cents) / 100,
     bonus: Number(row.bonus_cents) / 100,
@@ -236,8 +276,17 @@ function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimed
     requirements: Array.isArray(row.requirements) ? row.requirements.map(String) : [],
     fillTime: fillTime(row),
     template: status === 'completed',
-    replacementActive: Boolean(row.replacement_of),
+    replacementActive: Boolean(row.replacement_requested_at),
+    assignmentStatus: assignment ? String(assignment.status) : undefined,
+    cancellationReason: assignment?.cancellation_reason ? String(assignment.cancellation_reason) : undefined,
+    paymentStatus: normalizeLedgerStatus(paymentStatus),
   };
+}
+
+function normalizeLedgerStatus(status?: string): Shift['paymentStatus'] {
+  return ['pending', 'authorized', 'paid', 'failed', 'refunded'].includes(status ?? '')
+    ? status as Shift['paymentStatus']
+    : undefined;
 }
 
 function mapStatus(status: string): ShiftStatus {
@@ -332,9 +381,9 @@ function firstSkill(skills: unknown) {
 }
 
 function emptyWorker(): WorkerProfile {
-  return { id: '', name: '', initials: '', verified: false, score: 0, rating: null, ratingCount: 0, completedShifts: 0, attendance: null, earningsWeek: 0, paidWeek: 0, pendingWeek: 0, available: false, notificationsEnabled: false, skills: [], crewEmployers: [] };
+  return { id: '', name: '', initials: '', verified: false, score: 0, rating: null, ratingCount: 0, completedShifts: 0, scoreKnown: false, attendance: null, earningsWeek: 0, paidWeek: 0, pendingWeek: 0, authorizedWeek: 0, available: false, notificationsEnabled: false, skills: [], crewEmployers: [] };
 }
 
 function emptyEmployer(): EmployerProfile {
-  return { id: '', name: '', city: '', verified: false, rating: null, ratingCount: 0, crewCount: 0, completedShifts: 0, ledgerPending: 0, ledgerPaid: 0, crewWorkers: [], fillMedianMinutes: null, attendancePercent: null, repeatRate: null, fillRate: null, cancellationRate: null };
+  return { id: '', name: '', city: '', verified: false, rating: null, ratingCount: 0, crewCount: 0, completedShifts: 0, ledgerAwaiting: 0, ledgerAuthorized: 0, ledgerPaid: 0, crewWorkers: [], fillMedianMinutes: null, attendancePercent: null, repeatRate: null, fillRate: null, cancellationRate: null };
 }

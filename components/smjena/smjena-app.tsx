@@ -16,13 +16,15 @@ import type { ActionResult } from '@/app/dashboard/actions';
 import {
   broadcastShiftAction,
   cancelAssignmentAction,
+  cancelShiftAction,
   checkInAction,
   checkOutAction,
   claimShiftAction,
+  authorizePaymentAction,
   logoutAction,
+  markNoShowAction,
   postShiftAction,
   raiseShiftPayAction,
-  requestReplacementAction,
   rateAssignmentAction,
   setAvailabilityAction,
   setNotificationsAction,
@@ -81,7 +83,7 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
               <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[.08em] text-emerald-700"><span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" /> Produkcijska mreža</span>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setNotificationsOpen(true)} variant="ghost" size="icon" className="relative size-11 rounded-full" aria-label="Obavijesti"><Bell /></Button>
+              <Button onClick={() => setNotificationsOpen(true)} variant="ghost" size="icon" className="relative size-11 rounded-full" aria-label="Aktivnost naloga"><Bell /></Button>
               <form action={logoutAction}><Button type="submit" variant="ghost" size="icon" className="size-11 rounded-full" aria-label="Odjavi se"><LogOut /></Button></form>
               <span className="grid size-9 place-items-center rounded-full bg-[#101d34] text-xs font-extrabold text-white">{role === 'worker' ? state.worker.initials : data.profileName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')}</span>
             </div>
@@ -114,8 +116,10 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
               onPost={postShift}
               onRaisePay={(id) => run(() => raiseShiftPayAction(id), 'Ponuda je povećana za €10')}
               onBroadcast={(id) => run(() => broadcastShiftAction(id), 'Smjena je poslata javnoj mreži')}
-              onReplacement={(id) => run(() => requestReplacementAction(id), 'Potraga za zamjenom je aktivirana')}
               onRate={(assignmentId, score, wantAgain) => run(() => rateAssignmentAction(assignmentId, score, wantAgain), 'Ocjena je sačuvana')}
+              onCancelShift={(id) => run(() => cancelShiftAction(id), (result) => result.count ? `Smjena je otkazana · ${result.count} ${result.count === 1 ? 'potvrđeno mjesto je oslobođeno' : 'potvrđena mjesta su oslobođena'}` : 'Smjena je otkazana')}
+              onAuthorizePayment={(assignmentId) => run(() => authorizePaymentAction(assignmentId), (result) => `Obaveza od €${result.amount ?? 0} je potvrđena · uplata nije izvršena`)}
+              onMarkNoShow={(assignmentId) => run(() => markNoShowAction(assignmentId), 'Nedolazak je evidentiran · pokrenuta je potraga za zamjenom ako smjena još traje')}
             />
           )}
         </div>
@@ -128,9 +132,9 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
         </footer>
 
         <nav className="mobile-nav" aria-label="Glavna navigacija">
-          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="!text-[#ff5b35]">{role === 'worker' ? <Zap /> : <BriefcaseBusiness />}<span>{role === 'worker' ? 'Smjene' : 'Objavi'}</span></button>
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="!text-[#ff5b35]">{role === 'worker' ? <Zap /> : <BriefcaseBusiness />}<span>{role === 'worker' ? 'Smjene' : 'Početak'}</span></button>
           <button onClick={() => document.querySelector('aside')?.scrollIntoView({ behavior: 'smooth' })}><WalletCards /><span>{role === 'worker' ? 'Zarada' : 'Rezultati'}</span></button>
-          <button onClick={() => setNotificationsOpen(true)}><Bell /><span>Obavijesti</span></button>
+          <button onClick={() => setNotificationsOpen(true)}><Bell /><span>Aktivnost</span></button>
           <form action={logoutAction}><button type="submit"><LogOut /><span>Odjava</span></button></form>
         </nav>
 

@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "oxlint",
-    "test": "node --experimental-strip-types --test lib/smjena.test.ts",
+    "test": "node --experimental-strip-types --test lib/smjena.test.ts lib/auth.test.ts",
+    "test:db": "node scripts/validate-migrations.mjs",
     "format": "oxfmt"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",

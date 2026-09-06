@@ -20,9 +20,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
 
   return (
-    <main id="main-content" className="min-h-screen bg-[#f4f1eb] px-4 py-8 text-[#101d34] sm:py-14">
+    <main id="main-content" className="min-h-screen overflow-x-hidden bg-[#f4f1eb] px-4 py-8 text-[#101d34] sm:py-14">
       <div className="mx-auto mb-8 max-w-5xl"><Brand /></div>
-      <div className="mx-auto grid max-w-5xl overflow-hidden rounded-[34px] border border-black/10 bg-white shadow-2xl shadow-[#101d34]/10 lg:grid-cols-[1.05fr_.95fr]">
+      <div className="mx-auto grid w-[calc(100vw-2rem)] min-w-0 max-w-5xl grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[34px] border border-black/10 bg-white shadow-2xl shadow-[#101d34]/10 lg:w-full lg:grid-cols-[1.05fr_.95fr]">
         <section className="relative hidden overflow-hidden bg-[#101d34] p-8 text-white sm:p-12 lg:block">
           <div className="absolute -right-24 -top-24 size-72 rounded-full bg-[#ff5b35]/20 blur-2xl" />
           <div className="relative">
@@ -32,10 +32,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <div className="mt-10 flex items-center gap-3 text-xs font-bold text-white/70"><ShieldCheck className="size-5 text-[#77f0bd]" /> Nalog i podaci zaštićeni su pravilima pristupa u bazi.</div>
           </div>
         </section>
-        <section className="p-7 sm:p-12">
-          <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ff5b35]">Prijava ili registracija</p>
-          <h2 className="mt-2 text-3xl font-black tracking-[-.04em]">Uđi u SMJENU</h2>
-          <p className="mb-7 mt-2 text-sm text-slate-500">Izaberi svoju ulogu i dobićeš siguran link na email.</p>
+        <section className="min-w-0 p-6 sm:p-12">
+          <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ff5b35]">Prijava ili novi nalog</p>
+          <h2 className="mt-2 text-[clamp(1.75rem,8vw,2rem)] font-black tracking-[-.04em]">Dobro došao u SMJENU</h2>
+          <p className="mb-7 mt-2 text-sm leading-6 text-slate-500">Ako već imaš nalog, treba ti samo email. Novi korisnici prvo biraju svoju ulogu.</p>
           {params.error === 'auth_callback' && <p role="alert" className="mb-5 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">Link nije važeći ili je istekao. Zatraži novi link ispod.</p>}
           <LoginForm />
         </section>

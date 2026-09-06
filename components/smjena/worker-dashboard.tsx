@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  BellOff,
   BellRing,
+  CalendarDays,
   CalendarCheck,
   CheckCircle2,
   ChevronRight,
@@ -32,6 +34,10 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/toast';
 import {
   openShifts,
+  cancellationScorePenalty,
+  isCheckInAvailable,
+  isCheckOutAvailable,
+  shiftsOverlap,
   type Shift,
   type SmjenaState,
 } from '@/lib/smjena';
@@ -64,10 +70,22 @@ export function WorkerDashboard({
 }: WorkerDashboardProps) {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [checkInOpen, setCheckInOpen] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelShift, setCancelShift] = useState<Shift | null>(null);
   const [onlyToday, setOnlyToday] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const activeShift = state.shifts.find((shift) => shift.id === state.activeShiftId) ?? null;
+  const commitments = state.shifts.filter((shift) => ['claimed', 'checked_in'].includes(shift.assignmentStatus ?? ''));
+  const upcomingCommitments = commitments.filter((shift) => shift.id !== activeShift?.id);
+  const history = state.shifts
+    .filter((shift) => ['completed', 'cancelled', 'no_show'].includes(shift.assignmentStatus ?? ''))
+    .sort((left, right) => (right.startsAt ?? '').localeCompare(left.startsAt ?? ''))
+    .slice(0, 5);
   const availableShifts = useMemo(() => {
     const available = openShifts(state).filter((shift) => shift.id !== state.activeShiftId);
     return onlyToday ? available.filter((shift) => shift.dayLabel === 'Danas') : available;
@@ -78,6 +96,17 @@ export function WorkerDashboard({
     if (!selectedShift) return;
     const claimed = await onClaim(selectedShift.id);
     if (claimed) setSelectedShift(null);
+  };
+
+  const claimDisabled = (shift: Shift) => busy
+    || !state.worker.available
+    || commitments.some((commitment) => shiftsOverlap(shift, commitment));
+
+  const claimDisabledLabel = (shift: Shift) => {
+    if (busy) return 'OBRADA U TOKU';
+    if (!state.worker.available) return 'PRVO UKLJUČI DOSTUPNOST';
+    if (commitments.some((commitment) => shiftsOverlap(shift, commitment))) return 'PREKLAPA SE SA TVOJOM SMJENOM';
+    return undefined;
   };
 
   const enableNotifications = async () => {
@@ -102,6 +131,17 @@ export function WorkerDashboard({
       await onNotifications(true, pushSubscription.toJSON());
     } catch {
       toast.add({ title: 'Obavijesti nijesu uključene', description: 'Preglednik nije uspio sačuvati dozvolu. Pokušaj ponovo ili provjeri postavke.', type: 'warning' });
+    }
+  };
+
+  const disableNotifications = async () => {
+    try {
+      const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+      const subscription = await registration?.pushManager.getSubscription();
+      const disabled = await onNotifications(false);
+      if (disabled) await subscription?.unsubscribe();
+    } catch {
+      toast.add({ title: 'Obavijesti nijesu isključene', description: 'Pokušaj ponovo. Postavka na nalogu nije promijenjena.', type: 'warning' });
     }
   };
 
@@ -134,12 +174,23 @@ export function WorkerDashboard({
               onCheckOut={() => {
                 void onCheckOut(activeShift.id);
               }}
-              onCancel={() => setCancelOpen(true)}
+              onCancel={() => setCancelShift(activeShift)}
+              now={now}
             />
           ) : featured ? (
-            <ShiftCard shift={featured} featured disabled={busy || !state.worker.available} disabledLabel={busy ? 'OBRADA U TOKU' : 'PRVO UKLJUČI DOSTUPNOST'} onClaim={() => setSelectedShift(featured)} />
+            <ShiftCard shift={featured} featured disabled={claimDisabled(featured)} disabledLabel={claimDisabledLabel(featured)} onClaim={() => setSelectedShift(featured)} />
           ) : (
             <EmptyFeed onReset={onReset} />
+          )}
+
+          {upcomingCommitments.length > 0 && (
+            <section className="mt-6" aria-labelledby="upcoming-commitments-heading">
+              <p className="eyebrow">TVOJE OBAVEZE</p>
+              <h2 id="upcoming-commitments-heading" className="font-display mt-1 text-xl font-black tracking-[-.035em]">Naredne potvrđene smjene</h2>
+              <div className="mt-3 space-y-3">
+                {upcomingCommitments.map((shift) => <CommitmentRow key={shift.id} shift={shift} busy={busy} onCancel={() => setCancelShift(shift)} />)}
+              </div>
+            </section>
           )}
 
           <div className="mb-4 mt-9 flex items-center justify-between gap-4">
@@ -154,7 +205,7 @@ export function WorkerDashboard({
 
           <div className="space-y-3">
             {otherShifts.length > 0 ? otherShifts.map((shift) => (
-              <ShiftCard key={shift.id} shift={shift} disabled={busy || Boolean(activeShift) || !state.worker.available} disabledLabel={busy ? 'Obrada u toku' : activeShift ? 'Već imaš smjenu' : 'Uključi dostupnost'} onClaim={() => setSelectedShift(shift)} />
+              <ShiftCard key={shift.id} shift={shift} disabled={claimDisabled(shift)} disabledLabel={claimDisabledLabel(shift)} onClaim={() => setSelectedShift(shift)} />
             )) : (
               <div className="rounded-[22px] border border-dashed border-slate-300 bg-white/60 p-7 text-center">
                 <CalendarCheck className="mx-auto size-6 text-slate-400" />
@@ -163,6 +214,8 @@ export function WorkerDashboard({
               </div>
             )}
           </div>
+
+          {history.length > 0 && <WorkerHistory shifts={history} />}
 
           <section className="mt-9 grid gap-4 md:grid-cols-3" aria-label="Zašto raditi preko SMJENE">
             <TrustCard icon={<ShieldCheck />} title="Jasan status" copy="Oznaka verifikacije prikazuje se samo kada je poslodavac stvarno verifikovan." />
@@ -180,9 +233,10 @@ export function WorkerDashboard({
               </div>
               <span className="grid size-10 place-items-center rounded-xl bg-white/10"><WalletCards className="size-5 text-[#ff9b83]" /></span>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-xs">
-              <div><p className="text-white/45">Čeka obračun</p><p className="mt-1 font-extrabold text-[#ffcc73]">€{state.worker.pendingWeek}</p></div>
-              <div><p className="text-white/45">Označeno plaćeno</p><p className="mt-1 font-extrabold text-[#77f0bd]">€{state.worker.paidWeek}</p></div>
+            <div className="mt-5 grid grid-cols-3 gap-3 border-t border-white/10 pt-4 text-xs">
+              <div><p className="text-white/45">Čeka potvrdu</p><p className="mt-1 font-extrabold text-[#ffcc73]">€{state.worker.pendingWeek}</p></div>
+              <div><p className="text-white/45">Potvrđeno</p><p className="mt-1 font-extrabold text-sky-300">€{state.worker.authorizedWeek}</p></div>
+              <div><p className="text-white/45">Plaćeno</p><p className="mt-1 font-extrabold text-[#77f0bd]">€{state.worker.paidWeek}</p></div>
             </div>
             <p className="mt-4 text-[10px] leading-4 text-white/40">Evidencija u SMJENI nije potvrda bankovne uplate.</p>
           </div>
@@ -190,10 +244,10 @@ export function WorkerDashboard({
           <div className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="score-ring grid size-14 place-items-center rounded-full" style={{ '--score': `${state.worker.score}%` } as React.CSSProperties}>
-                  <span className="font-display text-lg font-black">{state.worker.score}</span>
+                <div className="score-ring grid size-14 place-items-center rounded-full" style={{ '--score': `${state.worker.scoreKnown ? state.worker.score : 0}%` } as React.CSSProperties}>
+                  <span className="font-display text-lg font-black">{state.worker.scoreKnown ? state.worker.score : '—'}</span>
                 </div>
-                <div><p className="text-sm font-bold">SMJENA Score</p><p className="text-xs text-slate-500">{state.worker.completedShifts === 0 ? 'Početni nivo' : state.worker.score >= 95 ? 'Odličan rezultat' : 'Gradi se svakom smjenom'}</p></div>
+                <div><p className="text-sm font-bold">SMJENA Score</p><p className="text-xs text-slate-500">{!state.worker.scoreKnown ? 'Još nema dovoljno podataka' : state.worker.score >= 95 ? 'Odličan rezultat' : 'Gradi se svakom smjenom'}</p></div>
               </div>
               <ChevronRight className="size-5 text-slate-300" />
             </div>
@@ -219,11 +273,15 @@ export function WorkerDashboard({
             {state.worker.crewEmployers.length > 0 ? <div className="mt-4 flex items-center justify-between"><div className="flex -space-x-2">{state.worker.crewEmployers.slice(0, 3).map((employer, index) => <Avatar key={employer} initials={initials(employer)} color={['bg-[#6e59db]', 'bg-[#16896c]', 'bg-[#ff8a59]'][index]} />)}</div><Badge variant="secondary">Prvi pristup</Badge></div> : <p className="mt-4 text-xs leading-5 text-slate-500">Kada poslodavac nakon završene smjene izabere „Želim ponovo“, vidjećeš ga ovdje.</p>}
           </div>
 
-          {!state.worker.notificationsEnabled && (
-            <button onClick={enableNotifications} disabled={busy} className="min-h-11 w-full rounded-[24px] border border-[#d6d7ff] bg-[#f1f0ff] p-5 text-left transition hover:-translate-y-0.5 hover:shadow-sm disabled:cursor-wait disabled:opacity-60">
-              <div className="flex items-start gap-3"><BellRing className="mt-0.5 size-5 shrink-0 text-[#6e59db]" /><div><p className="text-sm font-extrabold">Ne propusti SOS smjenu</p><p className="mt-1 text-xs leading-5 text-[#4e4790]">Uključi obavijesti za vrijedne smjene blizu tebe.</p></div></div>
-            </button>
-          )}
+          <div className="rounded-[24px] border border-[#d6d7ff] bg-[#f1f0ff] p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                {state.worker.notificationsEnabled ? <BellRing className="mt-0.5 size-5 shrink-0 text-[#6e59db]" /> : <BellOff className="mt-0.5 size-5 shrink-0 text-[#6e59db]" />}
+                <div><p className="text-sm font-extrabold">Obavijesti o smjenama</p><p className="mt-1 text-xs leading-5 text-[#4e4790]">{state.worker.notificationsEnabled ? 'Uključene su za dostupne smjene u tvom gradu.' : 'Isključene su. Uključi ih samo ako želiš pravovremene ponude.'}</p></div>
+              </div>
+              <Switch checked={state.worker.notificationsEnabled} disabled={busy} onCheckedChange={(enabled) => { void (enabled ? enableNotifications() : disableNotifications()); }} aria-label="Obavijesti o novim smjenama" />
+            </div>
+          </div>
         </aside>
       </section>
 
@@ -256,10 +314,10 @@ export function WorkerDashboard({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+      <Dialog open={Boolean(cancelShift)} onOpenChange={(open) => !open && setCancelShift(null)}>
         <DialogContent className="rounded-[24px] sm:max-w-sm">
-          <DialogHeader><DialogTitle className="font-display text-2xl font-black">Otkazati smjenu?</DialogTitle><DialogDescription>Mjesto će odmah biti vraćeno u mrežu. Česta ili kasna otkazivanja utiču na pouzdanost.</DialogDescription></DialogHeader>
-          <DialogFooter><DialogClose disabled={busy} render={<Button variant="outline" className="h-11 rounded-xl" />}>Zadrži smjenu</DialogClose><Button variant="destructive" disabled={busy} onClick={async () => { if (activeShift && await onCancel(activeShift.id)) setCancelOpen(false); }} className="h-11 rounded-xl font-bold">{busy ? 'Otkazujem…' : 'Potvrdi otkazivanje'}</Button></DialogFooter>
+          <DialogHeader><DialogTitle className="font-display text-2xl font-black">Otkazati smjenu?</DialogTitle><DialogDescription>Mjesto će odmah biti vraćeno u mrežu. Ovo otkazivanje smanjuje tvoj Score za {cancelShift ? cancellationScorePenalty(cancelShift, now) : 0} {cancelShift && cancellationScorePenalty(cancelShift, now) === 1 ? 'bod' : 'bodova'}.</DialogDescription></DialogHeader>
+          <DialogFooter><DialogClose disabled={busy} render={<Button variant="outline" className="h-11 rounded-xl" />}>Zadrži smjenu</DialogClose><Button variant="destructive" disabled={busy} onClick={async () => { if (cancelShift && await onCancel(cancelShift.id)) setCancelShift(null); }} className="h-11 rounded-xl font-bold">{busy ? 'Otkazujem…' : 'Potvrdi otkazivanje'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </>
@@ -273,8 +331,10 @@ function urlBase64ToUint8Array(value: string) {
   return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)));
 }
 
-function ActiveShift({ shift, busy, onCheckIn, onCheckOut, onCancel }: { shift: Shift; busy: boolean; onCheckIn: () => void; onCheckOut: () => void; onCancel: () => void }) {
+function ActiveShift({ shift, busy, now, onCheckIn, onCheckOut, onCancel }: { shift: Shift; busy: boolean; now: Date; onCheckIn: () => void; onCheckOut: () => void; onCancel: () => void }) {
   const inProgress = shift.status === 'in_progress';
+  const checkInReady = isCheckInAvailable(shift, now);
+  const checkOutReady = isCheckOutAvailable(shift, now);
   return (
     <article className="active-shift overflow-hidden rounded-[30px] bg-[#0d1d1a] text-white shadow-[0_28px_70px_rgba(13,29,26,.2)]">
       <div className="p-5 sm:p-7">
@@ -289,11 +349,71 @@ function ActiveShift({ shift, busy, onCheckIn, onCheckOut, onCancel }: { shift: 
         <div className="mt-6 grid gap-3 sm:grid-cols-3"><ActiveInfo icon={<MapPin />} label="Lokacija" value={shift.area} /><ActiveInfo icon={<Clock3 />} label="Vrijeme" value={`${shift.start}–${shift.end}`} /><ActiveInfo icon={<Users />} label="Ekipa" value={`${shift.workersNeeded} radnika`} /></div>
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t border-white/10 bg-white/[.035] p-5 sm:px-7">
-        <div className="flex flex-wrap gap-2">{inProgress ? <Button onClick={onCheckOut} disabled={busy} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><CircleDollarSign /> {busy ? 'Evidentiram…' : `Završi i evidentiraj €${shift.pay}`}</Button> : <><Button onClick={onCheckIn} disabled={busy} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><MapPin /> Potvrdi dolazak</Button><Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white">Otkaži</Button></>}</div>
-        <span className="text-xs text-white/45">{inProgress ? 'Iznos ulazi u evidenciju za obračun; ovo nije potvrda bankovne uplate.' : 'Dođi 10 minuta ranije. Sretno!'}</span>
+        <div className="flex flex-wrap gap-2">{inProgress ? <Button onClick={onCheckOut} disabled={busy || !checkOutReady} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><CircleDollarSign /> {busy ? 'Evidentiram…' : checkOutReady ? `Završi i evidentiraj €${shift.pay}` : `Dostupno od ${actionTime(shift.endsAt, -30)}`}</Button> : <><Button onClick={onCheckIn} disabled={busy || !checkInReady} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><MapPin /> {checkInReady ? 'Potvrdi dolazak' : `Dostupno od ${actionTime(shift.startsAt, -60)}`}</Button><Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white">Otkaži</Button></>}</div>
+        <span className="text-xs text-white/45">{inProgress ? 'Završetak prvo čeka potvrdu poslodavca. Ovo nije potvrda bankovne uplate.' : checkInReady ? 'Potvrdi tek kada stigneš na lokaciju.' : 'Dolazak možeš potvrditi 60 minuta prije početka.'}</span>
       </div>
     </article>
   );
+}
+
+function CommitmentRow({ shift, busy, onCancel }: { shift: Shift; busy: boolean; onCancel: () => void }) {
+  return (
+    <article className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-emerald-200 bg-emerald-50/60 p-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><CalendarDays className="size-5" /></span>
+        <div><p className="font-display font-black">{shift.role} · {shift.employer}</p><p className="mt-1 text-xs leading-5 text-slate-600">{shift.dayLabel} · {shift.start}–{shift.end} · {shift.area} · €{shift.pay}</p></div>
+      </div>
+      <Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-emerald-200 bg-white font-bold">Otkaži</Button>
+    </article>
+  );
+}
+
+function WorkerHistory({ shifts }: { shifts: Shift[] }) {
+  return (
+    <section className="mt-9" aria-labelledby="worker-history-heading">
+      <p className="eyebrow">EVIDENCIJA</p>
+      <h2 id="worker-history-heading" className="font-display mt-1 text-2xl font-black tracking-[-.04em]">Tvoje prethodne smjene</h2>
+      <div className="mt-4 space-y-3">
+        {shifts.map((shift) => (
+          <article key={shift.id} className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm">
+            <div><p className="font-display font-black">{shift.role} · {shift.employer}</p><p className="mt-1 text-xs text-slate-500">{shift.dayLabel} · {shift.start}–{shift.end} · €{shift.pay}</p></div>
+            <Badge variant="outline" className={historyTone(shift)}>{historyLabel(shift)}</Badge>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function historyLabel(shift: Shift) {
+  if (shift.assignmentStatus === 'cancelled') {
+    return shift.cancellationReason?.startsWith('Poslodavac') ? 'Otkazao poslodavac' : 'Otkazano';
+  }
+  if (shift.assignmentStatus === 'no_show') return 'Nedolazak';
+  if (shift.paymentStatus === 'paid') return 'Označeno plaćeno';
+  if (shift.paymentStatus === 'authorized') return 'Poslodavac potvrdio';
+  if (shift.paymentStatus === 'pending') return 'Čeka potvrdu poslodavca';
+  if (shift.paymentStatus === 'failed') return 'Problem sa isplatom';
+  if (shift.paymentStatus === 'refunded') return 'Stornirano';
+  return 'Završeno';
+}
+
+function historyTone(shift: Shift) {
+  if (shift.paymentStatus === 'paid') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  if (shift.paymentStatus === 'authorized') return 'border-sky-200 bg-sky-50 text-sky-800';
+  if (shift.paymentStatus === 'pending') return 'border-amber-200 bg-amber-50 text-amber-800';
+  return 'border-slate-200 bg-slate-50 text-slate-600';
+}
+
+function actionTime(value: string | undefined, offsetMinutes: number) {
+  if (!value) return '—';
+  const date = new Date(new Date(value).getTime() + offsetMinutes * 60_000);
+  return new Intl.DateTimeFormat('sr-Latn-ME', {
+    timeZone: 'Europe/Podgorica',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
 function ActiveInfo({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

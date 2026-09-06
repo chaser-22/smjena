@@ -14,7 +14,6 @@ import {
   Heart,
   LoaderCircle,
   Plus,
-  RefreshCw,
   ShieldCheck,
   Star,
   TimerReset,
@@ -60,15 +59,21 @@ type EmployerDashboardProps = {
   onPost: (input: NewShiftInput) => Promise<boolean>;
   onRaisePay: (id: string) => Promise<boolean>;
   onBroadcast: (id: string) => Promise<boolean>;
-  onReplacement: (id: string) => Promise<boolean>;
   onRate: (assignmentId: string, score: number, wantAgain: boolean) => Promise<boolean>;
+  onCancelShift: (id: string) => Promise<boolean>;
+  onAuthorizePayment: (assignmentId: string) => Promise<boolean>;
+  onMarkNoShow: (assignmentId: string) => Promise<boolean>;
 };
 
-export function EmployerDashboard({ state, busy, onPost, onRaisePay, onBroadcast, onReplacement, onRate }: EmployerDashboardProps) {
+type ShiftAssignment = NonNullable<Shift['assignments']>[number];
+
+export function EmployerDashboard({ state, busy, onPost, onRaisePay, onBroadcast, onRate, onCancelShift, onAuthorizePayment, onMarkNoShow }: EmployerDashboardProps) {
   const [postOpen, setPostOpen] = useState(false);
   const [crewOpen, setCrewOpen] = useState(false);
   const [ratingShift, setRatingShift] = useState<Shift | null>(null);
   const [templateShift, setTemplateShift] = useState<Shift | null>(null);
+  const [cancelShift, setCancelShift] = useState<Shift | null>(null);
+  const [noShow, setNoShow] = useState<{ shift: Shift; assignment: ShiftAssignment } | null>(null);
 
   const shifts = employerShifts(state);
   const activeShifts = shifts
@@ -108,7 +113,8 @@ export function EmployerDashboard({ state, busy, onPost, onRaisePay, onBroadcast
               busy={busy}
               onRaisePay={() => onRaisePay(primaryShift.id)}
               onBroadcast={() => onBroadcast(primaryShift.id)}
-              onReplacement={() => onReplacement(primaryShift.id)}
+              onCancel={() => setCancelShift(primaryShift)}
+              onMarkNoShow={(assignment) => setNoShow({ shift: primaryShift, assignment })}
             />
           ) : (
             <NoActiveShift onPost={() => openNewShift()} />
@@ -120,7 +126,7 @@ export function EmployerDashboard({ state, busy, onPost, onRaisePay, onBroadcast
           </div>
           <div className="space-y-3">
             {shifts.length > 0 ? shifts.map((shift) => (
-              <EmployerShiftRow key={shift.id} shift={shift} busy={busy} onTemplate={() => openNewShift(shift)} onRate={() => setRatingShift(shift)} />
+              <EmployerShiftRow key={shift.id} shift={shift} busy={busy} onTemplate={() => openNewShift(shift)} onRate={() => setRatingShift(shift)} onCancel={() => setCancelShift(shift)} onAuthorizePayment={onAuthorizePayment} />
             )) : <div className="rounded-[22px] border border-dashed border-slate-300 bg-white/60 p-7 text-center"><Clock3 className="mx-auto size-6 text-slate-400" /><p className="mt-3 text-sm font-extrabold">Još nema objavljenih smjena</p><p className="mt-1 text-xs text-slate-500">Prva objavljena smjena pojaviće se ovdje sa stvarnim statusom popunjavanja.</p></div>}
           </div>
 
@@ -158,7 +164,7 @@ export function EmployerDashboard({ state, busy, onPost, onRaisePay, onBroadcast
 
           <div className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between"><p className="text-sm font-extrabold">Obaveze prema radnicima</p><Euro className="size-4 text-[#ff5b35]" /></div>
-            <div className="mt-5 grid grid-cols-2 gap-4"><Metric value={`€${state.employer.ledgerPending}`} label="čeka obračun" /><Metric value={`€${state.employer.ledgerPaid}`} label="označeno plaćeno" /></div>
+            <div className="mt-5 grid grid-cols-3 gap-3"><Metric value={`€${state.employer.ledgerAwaiting}`} label="čeka tvoju potvrdu" /><Metric value={`€${state.employer.ledgerAuthorized}`} label="potvrđeno" /><Metric value={`€${state.employer.ledgerPaid}`} label="označeno plaćeno" /></div>
             <p className="mt-4 border-t border-slate-100 pt-3 text-[10px] leading-4 text-slate-500">SMJENA vodi evidenciju obaveze. Oznaka u evidenciji sama ne izvršava bankovnu uplatu.</p>
           </div>
 
@@ -172,12 +178,25 @@ export function EmployerDashboard({ state, busy, onPost, onRaisePay, onBroadcast
       <PostShiftDialog key={`${templateShift?.id ?? 'new'}-${postOpen}`} open={postOpen} onOpenChange={setPostOpen} template={templateShift} employerCity={state.employer.city} hasCrew={state.employer.crewCount > 0} onPost={handlePost} />
       <CrewDialog open={crewOpen} onOpenChange={setCrewOpen} workers={state.employer.crewWorkers} />
       <RatingDialog key={ratingShift?.id ?? 'closed'} shift={ratingShift} busy={busy} onOpenChange={(open) => !open && setRatingShift(null)} onRate={onRate} />
+      <Dialog open={Boolean(cancelShift)} onOpenChange={(open) => !open && setCancelShift(null)}>
+        <DialogContent className="rounded-[24px] sm:max-w-sm">
+          <DialogHeader><DialogTitle className="font-display text-2xl font-black">Otkazati ovu smjenu?</DialogTitle><DialogDescription>{cancelShift?.claimedCount ? `${cancelShift.claimedCount} ${cancelShift.claimedCount === 1 ? 'radnik ima' : 'radnika imaju'} potvrđeno mjesto. Njihov Score se neće smanjiti. Promjena će odmah biti vidljiva u aplikaciji, a onima koji su uključili push pokušaćemo poslati obavijest.` : 'Smjena će nestati iz ponude radnicima. Ovu radnju nije moguće poništiti.'}</DialogDescription></DialogHeader>
+          <DialogFooter><DialogClose disabled={busy} render={<Button variant="outline" className="h-11 rounded-xl" />}>Zadrži smjenu</DialogClose><Button variant="destructive" disabled={busy} onClick={async () => { if (cancelShift && await onCancelShift(cancelShift.id)) setCancelShift(null); }} className="h-11 rounded-xl font-bold">{busy ? 'Otkazujem…' : 'Otkaži smjenu'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(noShow)} onOpenChange={(open) => !open && setNoShow(null)}>
+        <DialogContent className="rounded-[24px] sm:max-w-sm">
+          <DialogHeader><DialogTitle className="font-display text-2xl font-black">Evidentirati nedolazak?</DialogTitle><DialogDescription>Za {noShow?.assignment.workerName ?? 'ovog radnika'} će biti zabilježen nedolazak i Score će se smanjiti za 10 bodova. Ako smjena još traje, prazno mjesto odmah ide u javnu SOS potragu.</DialogDescription></DialogHeader>
+          <DialogFooter><DialogClose disabled={busy} render={<Button variant="outline" className="h-11 rounded-xl" />}>Vrati se</DialogClose><Button variant="destructive" disabled={busy} onClick={async () => { if (noShow && await onMarkNoShow(noShow.assignment.id)) setNoShow(null); }} className="h-11 rounded-xl font-bold">{busy ? 'Evidentiram…' : 'Potvrdi nedolazak'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
-function EmployerHero({ shift, busy, onRaisePay, onBroadcast, onReplacement }: { shift: Shift; busy: boolean; onRaisePay: () => Promise<boolean>; onBroadcast: () => Promise<boolean>; onReplacement: () => Promise<boolean> }) {
+function EmployerHero({ shift, busy, onRaisePay, onBroadcast, onCancel, onMarkNoShow }: { shift: Shift; busy: boolean; onRaisePay: () => Promise<boolean>; onBroadcast: () => Promise<boolean>; onCancel: () => void; onMarkNoShow: (assignment: ShiftAssignment) => void }) {
   const full = remainingSpots(shift) === 0;
+  const started = Boolean(shift.startsAt && new Date(shift.startsAt) <= new Date());
   return (
     <article className="overflow-hidden rounded-[30px] bg-[#101d34] text-white shadow-[0_28px_70px_rgba(16,29,52,.2)]">
       <div className="p-5 sm:p-7">
@@ -190,24 +209,27 @@ function EmployerHero({ shift, busy, onRaisePay, onBroadcast, onReplacement }: {
           <div className="rounded-2xl bg-white/[.07] px-5 py-4 text-center"><p className="font-display text-3xl font-black text-[#77f0bd]">{shift.claimedCount} / {shift.workersNeeded}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[.1em] text-white/45">mjesta popunjeno</p></div>
         </div>
         <div className="mt-6"><FillProgress shift={shift} /></div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3"><HeroMetric icon={<Clock3 />} value={shift.fillTime ?? '—'} label={shift.fillTime ? 'vrijeme do pune smjene' : 'još nije potpuno popunjena'} /><HeroMetric icon={<Users />} value={String(shift.notifiedCount)} label="poslatih obavijesti" /><HeroMetric icon={<BellRing />} value={shift.audience === 'crew' ? 'Moji ljudi' : 'Javna mreža'} label="trenutna publika" /></div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3"><HeroMetric icon={<Clock3 />} value={shift.fillTime ?? '—'} label={shift.fillTime ? 'vrijeme do pune smjene' : 'još nije potpuno popunjena'} /><HeroMetric icon={<Users />} value={String(shift.notifiedCount)} label="isporučeno u zadnjoj dostavi" /><HeroMetric icon={<BellRing />} value={shift.audience === 'crew' ? 'Moji ljudi' : 'Javna mreža'} label="trenutna publika" /></div>
         <div className="mt-5 rounded-2xl border border-white/10 bg-white/[.04] p-4">
           <p className="text-[10px] font-bold uppercase tracking-[.1em] text-white/45">Potvrđeni radnici</p>
-          {shift.assignments?.length ? <div className="mt-3 flex flex-wrap gap-2">{shift.assignments.map((assignment) => <span key={assignment.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/[.08] px-3 text-xs font-bold"><Avatar initials={assignment.workerName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')} size="sm" color="bg-[#16896c]" />{assignment.workerName}<Badge className="bg-white/10 text-white/70">{assignmentStatusLabel(assignment.status)}</Badge></span>)}</div> : <p className="mt-2 text-xs text-white/55">Još niko nije potvrdio dolazak. Svako zauzeto mjesto pojaviće se ovdje.</p>}
+          {shift.assignments?.length ? <div className="mt-3 flex flex-wrap gap-2">{shift.assignments.map((assignment) => <div key={assignment.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/[.08] px-3 text-xs font-bold"><Avatar initials={assignment.workerName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')} size="sm" color="bg-[#16896c]" />{assignment.workerName}<Badge className="bg-white/10 text-white/70">{assignmentStatusLabel(assignment.status)}</Badge>{started && assignment.status === 'claimed' && <Button onClick={() => onMarkNoShow(assignment)} disabled={busy} variant="ghost" className="min-h-11 px-2 text-red-100 hover:bg-red-500/15 hover:text-white">Nije došao</Button>}</div>)}</div> : <p className="mt-2 text-xs text-white/55">Još niko nije potvrdio dolazak. Svako zauzeto mjesto pojaviće se ovdje.</p>}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[.035] p-4 sm:px-7">
         {!full && shift.audience === 'crew' && <Button onClick={onBroadcast} disabled={busy} className="h-11 rounded-xl bg-white text-[#101d34] font-bold hover:bg-white/90"><BellRing /> Pošalji javnoj mreži</Button>}
         {!full && <Button onClick={onRaisePay} disabled={busy} className="h-11 rounded-xl bg-[#ff5b35] font-bold hover:bg-[#e94b27]"><Euro /> Povećaj za €10</Button>}
-        {shift.claimedCount < shift.workersNeeded && <Button onClick={onReplacement} disabled={busy} variant="outline" className="h-11 rounded-xl border-white/15 bg-white/[.04] font-bold text-white hover:bg-white/10 hover:text-white"><RefreshCw /> Traži zamjenu</Button>}
+        {!started && shift.status !== 'in_progress' && <Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-red-300/30 bg-transparent font-bold text-red-100 hover:bg-red-500/15 hover:text-white">Otkaži smjenu</Button>}
         {full && <span className="flex items-center gap-2 text-sm font-extrabold text-[#77f0bd]"><CheckCircle2 className="size-5" /> Smjena je spremna</span>}
       </div>
     </article>
   );
 }
 
-function EmployerShiftRow({ shift, busy, onTemplate, onRate }: { shift: Shift; busy: boolean; onTemplate: () => void; onRate: () => void }) {
+function EmployerShiftRow({ shift, busy, onTemplate, onRate, onCancel, onAuthorizePayment }: { shift: Shift; busy: boolean; onTemplate: () => void; onRate: () => void; onCancel: () => void; onAuthorizePayment: (assignmentId: string) => Promise<boolean> }) {
   const completed = shift.status === 'completed';
+  const started = Boolean(shift.startsAt && new Date(shift.startsAt) <= new Date());
+  const payableAssignments = shift.assignments?.filter((assignment) => assignment.status === 'completed') ?? [];
+  const noShows = shift.assignments?.filter((assignment) => assignment.status === 'no_show') ?? [];
   return (
     <article className="rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -218,9 +240,23 @@ function EmployerShiftRow({ shift, busy, onTemplate, onRate }: { shift: Shift; b
         <div className="flex items-center gap-2">
           {shift.claimedWorkers.length > 0 && <div className="mr-1 hidden -space-x-2 sm:flex">{shift.claimedWorkers.slice(0, 3).map((worker, index) => <Avatar key={worker} initials={worker.split(' ').map((part) => part[0]).join('')} color={['bg-[#6e59db]', 'bg-[#16896c]', 'bg-[#ff8a59]'][index]} />)}</div>}
           {completed && shift.assignments?.some((assignment) => assignment.status === 'completed') && <Button onClick={onRate} disabled={busy} variant="outline" className="h-11 rounded-xl font-bold"><Star /> Ocijeni</Button>}
+          {!started && ['open', 'claimed'].includes(shift.status) && <Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-red-200 font-bold text-red-700 hover:bg-red-50 hover:text-red-800">Otkaži</Button>}
           <Button onClick={onTemplate} disabled={busy} variant="outline" className="h-11 rounded-xl font-bold"><Copy /> Ponovi</Button>
         </div>
       </div>
+      {completed && payableAssignments.length > 0 && (
+        <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+          <p className="text-[10px] font-black uppercase tracking-[.1em] text-slate-400">Obaveze po radniku</p>
+          {payableAssignments.map((assignment) => (
+            <div key={assignment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
+              <div><p className="text-sm font-extrabold">{assignment.workerName} · €{assignment.pay}</p><p className="mt-0.5 text-xs text-slate-500">{paymentStatusLabel(assignment.paymentStatus)}</p></div>
+              {assignment.paymentStatus === 'pending' && <Button onClick={() => onAuthorizePayment(assignment.id)} disabled={busy} className="h-11 rounded-xl bg-[#16896c] font-bold hover:bg-[#11765d]">Potvrdi obavezu</Button>}
+            </div>
+          ))}
+          <p className="text-[10px] leading-4 text-slate-500">Potvrda priznaje evidentirani iznos kao obavezu. Ne izvršava bankovnu uplatu.</p>
+        </div>
+      )}
+      {noShows.length > 0 && <p className="mt-3 border-t border-slate-100 pt-3 text-xs font-semibold text-red-700">{noShows.map((assignment) => assignment.workerName).join(', ')} · evidentiran nedolazak</p>}
     </article>
   );
 }
@@ -230,6 +266,7 @@ function PostShiftDialog({ open, onOpenChange, template, employerCity, hasCrew, 
   const [urgent, setUrgent] = useState(template?.urgent ?? false);
   const [crewFirst, setCrewFirst] = useState(hasCrew);
   const [submitting, setSubmitting] = useState(false);
+  const [requestId] = useState(() => globalThis.crypto.randomUUID());
   const timing = useMemo(() => defaultShiftTiming(), []);
 
   const defaults = useMemo(() => ({
@@ -248,6 +285,7 @@ function PostShiftDialog({ open, onOpenChange, template, employerCity, hasCrew, 
     setSubmitting(true);
     try {
       await onPost({
+        requestId,
         role,
         workersNeeded: Number(data.get('workersNeeded')),
         start: String(data.get('start')),
@@ -321,7 +359,18 @@ function metricPercent(value: number | null) {
 function assignmentStatusLabel(status: string) {
   if (status === 'checked_in') return 'Stigao';
   if (status === 'completed') return 'Završio';
+  if (status === 'no_show') return 'Nije došao';
+  if (status === 'cancelled') return 'Otkazano';
   return 'Potvrdio';
+}
+
+function paymentStatusLabel(status: Shift['paymentStatus']) {
+  if (status === 'pending') return 'Radnik je završio · čeka tvoju potvrdu';
+  if (status === 'authorized') return 'Potvrđeno za isplatu · nije bankovna uplata';
+  if (status === 'paid') return 'Označeno plaćeno';
+  if (status === 'failed') return 'Problem sa isplatom';
+  if (status === 'refunded') return 'Stornirano';
+  return 'Nema evidentirane obaveze';
 }
 
 function montenegroDateInput(date = new Date()) {

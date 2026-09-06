@@ -13,7 +13,10 @@ export type ProductEventName =
   | 'shift_broadcast'
   | 'shift_pay_raised'
   | 'replacement_requested'
-  | 'worker_rated';
+  | 'worker_rated'
+  | 'shift_cancelled_by_employer'
+  | 'payment_authorized'
+  | 'worker_marked_no_show';
 
 type ProductEvent = {
   userId: string;
