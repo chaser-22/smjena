@@ -74,18 +74,29 @@ function AuthForm({ intent, onReset }: { intent: 'login' | 'register'; onReset: 
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="intent" value={intent} />
-      {intent === 'register' && <input type="hidden" name="role" value={role} />}
-
       {intent === 'register' && (
         <>
-          <div>
-            <p className="mb-2 text-xs font-extrabold text-slate-700">Otvaram nalog kao</p>
+          <fieldset>
+            <legend className="mb-2 text-xs font-extrabold text-slate-700">Otvaram nalog kao</legend>
             <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5">
-              <button type="button" aria-pressed={role === 'worker'} onClick={() => setRole('worker')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-extrabold transition ${role === 'worker' ? 'bg-white text-[#101d34] shadow-sm' : 'text-slate-500'}`}><UserRound className="size-4" /> Radnik</button>
-              <button type="button" aria-pressed={role === 'employer'} onClick={() => setRole('employer')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-extrabold transition ${role === 'employer' ? 'bg-white text-[#101d34] shadow-sm' : 'text-slate-500'}`}><Building2 className="size-4" /> Poslodavac</button>
+              {(['worker', 'employer'] as const).map((option) => (
+                <label key={option} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value={option}
+                    checked={role === option}
+                    onChange={() => setRole(option)}
+                    className="peer sr-only"
+                  />
+                  <span className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-extrabold transition peer-focus-visible:ring-3 peer-focus-visible:ring-[#ff5b35]/40 ${role === option ? 'bg-white text-[#101d34] shadow-sm' : 'text-slate-500'}`}>
+                    {option === 'worker' ? <><UserRound className="size-4" /> Radnik</> : <><Building2 className="size-4" /> Poslodavac</>}
+                  </span>
+                </label>
+              ))}
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-500">Uloga se trajno veže za ovaj email. Za drugu ulogu koristi drugi email.</p>
-          </div>
+          </fieldset>
 
           <Field id="fullName" label={role === 'worker' ? 'Ime i prezime' : 'Ime odgovorne osobe'} error={state.errors?.fullName?.[0]}>
             <Input id="fullName" name="fullName" autoComplete="name" required aria-invalid={Boolean(state.errors?.fullName)} aria-describedby={state.errors?.fullName ? 'fullName-error' : undefined} placeholder="Marko Marković" className="h-12 rounded-xl" />
