@@ -12,15 +12,43 @@ const initialState: LoginState = { status: 'idle' };
 export function LoginForm() {
   const [intent, setIntent] = useState<'login' | 'register'>('login');
   const [version, setVersion] = useState(0);
+  const selectIntent = (next: 'login' | 'register') => {
+    setIntent(next);
+    document.getElementById(`${next}-auth-tab`)?.focus();
+  };
 
   return (
     <div>
-      <fieldset className="mb-6 grid min-w-0 grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5">
-        <legend className="sr-only">Prijava ili novi nalog</legend>
-        <button type="button" aria-pressed={intent === 'login'} onClick={() => setIntent('login')} className={`min-h-11 min-w-0 rounded-xl px-2 text-xs font-extrabold transition sm:px-3 sm:text-sm ${intent === 'login' ? 'bg-white text-[#101d34] shadow-sm' : 'text-slate-500'}`}>Imam nalog</button>
-        <button type="button" aria-pressed={intent === 'register'} onClick={() => setIntent('register')} className={`min-h-11 min-w-0 rounded-xl px-2 text-xs font-extrabold transition sm:px-3 sm:text-sm ${intent === 'register' ? 'bg-white text-[#101d34] shadow-sm' : 'text-slate-500'}`}>Napravi nalog</button>
-      </fieldset>
-      <AuthForm key={`${intent}-${version}`} intent={intent} onReset={() => setVersion((value) => value + 1)} />
+      <div role="tablist" aria-label="Prijava ili novi nalog" className="mb-6 grid min-w-0 grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5">
+        {(['login', 'register'] as const).map((option) => (
+          <button
+            key={option}
+            id={`${option}-auth-tab`}
+            type="button"
+            role="tab"
+            aria-selected={intent === option}
+            aria-controls="auth-form-panel"
+            tabIndex={intent === option ? 0 : -1}
+            onClick={() => setIntent(option)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                selectIntent(option === 'login' ? 'register' : 'login');
+              }
+              if (event.key === 'Home' || event.key === 'End') {
+                event.preventDefault();
+                selectIntent(event.key === 'Home' ? 'login' : 'register');
+              }
+            }}
+            className={`min-h-11 min-w-0 rounded-xl px-2 text-xs font-extrabold transition sm:px-3 sm:text-sm ${intent === option ? 'bg-white text-[#101d34] shadow-sm' : 'text-slate-500'}`}
+          >
+            {option === 'login' ? 'Imam nalog' : 'Napravi nalog'}
+          </button>
+        ))}
+      </div>
+      <div id="auth-form-panel" role="tabpanel" aria-labelledby={`${intent}-auth-tab`}>
+        <AuthForm key={`${intent}-${version}`} intent={intent} onReset={() => setVersion((value) => value + 1)} />
+      </div>
     </div>
   );
 }
