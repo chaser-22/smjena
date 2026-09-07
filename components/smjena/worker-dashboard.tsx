@@ -12,6 +12,7 @@ import {
   Clock3,
   Heart,
   MapPin,
+  PhoneCall,
   ShieldCheck,
   Target,
   Trophy,
@@ -47,6 +48,8 @@ type WorkerDashboardProps = {
   state: SmjenaState;
   highlightShiftId?: string;
   busy: boolean;
+  contactReady: boolean;
+  onContactRequired: () => void;
   onClaim: (id: string) => Promise<boolean>;
   onCheckIn: (id: string) => Promise<boolean>;
   onCheckOut: (id: string) => Promise<boolean>;
@@ -60,6 +63,8 @@ export function WorkerDashboard({
   state,
   highlightShiftId,
   busy,
+  contactReady,
+  onContactRequired,
   onClaim,
   onCheckIn,
   onCheckOut,
@@ -99,11 +104,13 @@ export function WorkerDashboard({
   };
 
   const claimDisabled = (shift: Shift) => busy
+    || !contactReady
     || !state.worker.available
     || commitments.some((commitment) => shiftsOverlap(shift, commitment));
 
   const claimDisabledLabel = (shift: Shift) => {
     if (busy) return 'OBRADA U TOKU';
+    if (!contactReady) return 'DODAJ KONTAKT TELEFON';
     if (!state.worker.available) return 'PRVO UKLJUČI DOSTUPNOST';
     if (commitments.some((commitment) => shiftsOverlap(shift, commitment))) return 'PREKLAPA SE SA TVOJOM SMJENOM';
     return undefined;
@@ -151,7 +158,7 @@ export function WorkerDashboard({
         <div className="min-w-0">
           <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="eyebrow">DANAS · CRNA GORA</p>
+              <p className="eyebrow">DANAS · {state.worker.city.toUpperCase()}</p>
               <h1 className="font-display mt-2 text-[clamp(2rem,5vw,3.7rem)] font-black leading-[.95] tracking-[-0.055em]">
                 Slobodan si? <span className="text-[#ff5b35]">Zaradi danas.</span>
               </h1>
@@ -182,6 +189,8 @@ export function WorkerDashboard({
           ) : (
             <EmptyFeed onReset={onReset} />
           )}
+
+          {!contactReady && <Button onClick={onContactRequired} variant="outline" className="mt-3 h-11 w-full rounded-xl border-amber-200 bg-amber-50 font-bold text-amber-900 hover:bg-amber-100">Dodaj telefon da potvrdiš smjenu</Button>}
 
           {upcomingCommitments.length > 0 && (
             <section className="mt-6" aria-labelledby="upcoming-commitments-heading">
@@ -347,6 +356,7 @@ function ActiveShift({ shift, busy, now, onCheckIn, onCheckOut, onCancel }: { sh
           <div className="rounded-2xl bg-white/10 px-5 py-4 text-right"><p className="text-[10px] font-bold uppercase tracking-[.1em] text-white/45">{inProgress ? 'Zarada' : 'Počinje za'}</p><p className="font-display mt-1 text-2xl font-black">{inProgress ? `€${shift.pay}` : shift.startsIn}</p></div>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3"><ActiveInfo icon={<MapPin />} label="Lokacija" value={shift.area} /><ActiveInfo icon={<Clock3 />} label="Vrijeme" value={`${shift.start}–${shift.end}`} /><ActiveInfo icon={<Users />} label="Ekipa" value={`${shift.workersNeeded} radnika`} /></div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[.06] p-3"><div className="flex items-center gap-3"><PhoneCall className="size-4 text-[#77f0bd]" /><div><p className="text-[9px] font-bold uppercase tracking-[.1em] text-white/35">Kontakt poslodavca</p><p className="mt-0.5 text-xs font-bold">{shift.contactName ?? shift.employer}</p></div></div>{shift.contactPhone ? <a href={`tel:${shift.contactPhone}`} className="inline-flex min-h-11 items-center rounded-xl bg-white px-4 text-xs font-extrabold text-[#0d1d1a] hover:bg-white/90"><PhoneCall className="mr-2 size-4" /> Pozovi</a> : <span className="text-xs text-white/50">Broj još nije dodat</span>}</div>
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t border-white/10 bg-white/[.035] p-5 sm:px-7">
         <div className="flex flex-wrap gap-2">{inProgress ? <Button onClick={onCheckOut} disabled={busy || !checkOutReady} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><CircleDollarSign /> {busy ? 'Evidentiram…' : checkOutReady ? `Završi i evidentiraj €${shift.pay}` : `Dostupno od ${actionTime(shift.endsAt, -30)}`}</Button> : <><Button onClick={onCheckIn} disabled={busy || !checkInReady} className="h-11 rounded-xl bg-[#77f0bd] px-5 font-extrabold text-[#0d1d1a] hover:bg-[#96f5cc]"><MapPin /> {checkInReady ? 'Potvrdi dolazak' : `Dostupno od ${actionTime(shift.startsAt, -60)}`}</Button><Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white">Otkaži</Button></>}</div>
@@ -363,7 +373,7 @@ function CommitmentRow({ shift, busy, onCancel }: { shift: Shift; busy: boolean;
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><CalendarDays className="size-5" /></span>
         <div><p className="font-display font-black">{shift.role} · {shift.employer}</p><p className="mt-1 text-xs leading-5 text-slate-600">{shift.dayLabel} · {shift.start}–{shift.end} · {shift.area} · €{shift.pay}</p></div>
       </div>
-      <Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-emerald-200 bg-white font-bold">Otkaži</Button>
+      <div className="flex flex-wrap gap-2">{shift.contactPhone && <a href={`tel:${shift.contactPhone}`} className="inline-flex min-h-11 items-center rounded-xl border border-emerald-200 bg-white px-4 text-sm font-bold text-emerald-900"><PhoneCall className="mr-2 size-4" /> Pozovi</a>}<Button onClick={onCancel} disabled={busy} variant="outline" className="h-11 rounded-xl border-emerald-200 bg-white font-bold">Otkaži</Button></div>
     </article>
   );
 }

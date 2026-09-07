@@ -40,15 +40,19 @@ export type Shift = {
     id: string;
     workerId: string;
     workerName: string;
+    contactPhone?: string;
     status: string;
     pay: number;
     paymentStatus?: 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded';
   }>;
+  contactName?: string;
+  contactPhone?: string;
 };
 
 export type WorkerProfile = {
   id: string;
   name: string;
+  city: string;
   initials: string;
   verified: boolean;
   score: number;
@@ -162,4 +166,19 @@ export function shiftsOverlap(
   if (!left.startsAt || !left.endsAt || !right.startsAt || !right.endsAt) return false;
   return new Date(left.startsAt) < new Date(right.endsAt)
     && new Date(right.startsAt) < new Date(left.endsAt);
+}
+
+export function normalizeMontenegroPhone(value: string) {
+  let digits = value.trim().replace(/[^\d+]/g, '');
+  if (digits.startsWith('00')) digits = `+${digits.slice(2)}`;
+  if (digits.startsWith('+382')) digits = digits.slice(4);
+  else if (digits.startsWith('382')) digits = digits.slice(3);
+  else if (digits.startsWith('0')) digits = digits.slice(1);
+  return /^\d{8}$/.test(digits) ? `+382${digits}` : null;
+}
+
+export function formatMontenegroPhone(value: string) {
+  const normalized = normalizeMontenegroPhone(value);
+  if (!normalized) return value;
+  return `${normalized.slice(0, 4)} ${normalized.slice(4, 6)} ${normalized.slice(6, 9)} ${normalized.slice(9)}`;
 }

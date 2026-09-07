@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { recordProductEvent } from '@/lib/product-events';
-import type { NewShiftInput } from '@/lib/smjena';
+import { normalizeMontenegroPhone, type NewShiftInput } from '@/lib/smjena';
 import { notifyAvailableWorkers, notifyShiftCancellation } from '@/lib/notifications';
 
 export type ActionResult = { ok: true; amount?: number; count?: number } | { ok: false; error: string };
@@ -23,6 +23,41 @@ const ShiftSchema = z.object({
   urgent: z.boolean(),
   crewFirst: z.boolean(),
 });
+
+export async function updateContactAction(phone: string): Promise<ActionResult> {
+  const parsed = z.string().trim().min(6).max(40).safeParse(phone);
+  const normalized = parsed.success ? normalizeMontenegroPhone(parsed.data) : null;
+  if (!normalized) return failure('Unesi važeći broj iz Crne Gore, na primjer 067 123 456.');
+
+  const supabase = await createClient();
+  const { data, error: userError } = await supabase.auth.getUser();
+  if (userError || !data.user) return failure('Prijava je istekla. Prijavi se ponovo.');
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', data.user.id)
+    .single();
+  if (profileError || !profile) return failure('Profil nije pronađen.');
+
+  if (profile.role === 'worker') {
+    const { error } = await supabase.from('worker_contacts').upsert({ user_id: data.user.id, phone: normalized, updated_at: new Date().toISOString() });
+    if (error) return databaseFailure(error.message);
+  } else if (profile.role === 'employer') {
+    const { data: membership, error: membershipError } = await supabase
+      .from('employer_members')
+      .select('employer_id')
+      .eq('user_id', data.user.id)
+      .limit(1)
+      .single();
+    if (membershipError || !membership) return failure('Nalog nije povezan sa poslodavcem.');
+    const { error } = await supabase.from('employer_contacts').upsert({ employer_id: membership.employer_id, phone: normalized, updated_at: new Date().toISOString() });
+    if (error) return databaseFailure(error.message);
+  } else {
+    return failure('Nemaš dozvolu za ovu akciju.');
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
 
 export async function claimShiftAction(shiftId: string, source: 'dashboard' | 'push' = 'dashboard'): Promise<ActionResult> {
   const context = await requireRole('worker');
@@ -355,6 +390,8 @@ function databaseFailure(message: string): { ok: false; error: string } {
     'Worker already responded to shift': 'Već si odgovorio na ovu smjenu.',
     'No cancelled assignment': 'Zamjena je dostupna tek kada se prethodno mjesto oslobodi.',
     'Assignment cannot be cancelled': 'Ovaj angažman više nije moguće otkazati. Ako ne možeš doći, odmah kontaktiraj poslodavca.',
+    'Contact phone is required': 'Dodaj kontakt telefon prije ove akcije.',
+    'Employer contact phone is required': 'Poslodavac nije dodao kontakt. Ovu smjenu trenutno nije moguće potvrditi.',
   };
   return { ok: false, error: friendly[message] ?? 'Nijesmo mogli potvrditi akciju. Pokušaj ponovo; ako se problem ponavlja, javi podršci.' };
 }

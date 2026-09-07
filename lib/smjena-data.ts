@@ -11,6 +11,7 @@ export type DashboardData = {
   userId: string;
   employerId: string | null;
   profileName: string;
+  contactPhone: string | null;
   state: SmjenaState;
 };
 
@@ -33,17 +34,19 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   const supabase = await createClient();
   const now = new Date();
   const weekStart = startOfWeek(now);
-  const [workerResult, feedResult, assignmentResult, trustedResult, ledgerResult] = await Promise.all([
+  const [workerResult, feedResult, assignmentResult, trustedResult, ledgerResult, ownContactResult] = await Promise.all([
     supabase.from('worker_profiles').select('*').eq('user_id', userId).single(),
     supabase.from('shifts').select('*').eq('status', 'published').eq('city', String(profile.city)).gt('ends_at', now.toISOString()).order('starts_at').limit(50),
     supabase.from('shift_assignments').select('*').eq('worker_id', userId).order('claimed_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('employer_id').eq('worker_id', userId),
     supabase.from('payment_ledger').select('assignment_id, amount_cents, created_at, status').eq('worker_id', userId).order('created_at', { ascending: false }).limit(200),
+    supabase.from('worker_contacts').select('phone').eq('user_id', userId).maybeSingle(),
   ]);
 
   if (workerResult.error || !workerResult.data) throw new Error('Radnički profil nije pronađen.');
   if (feedResult.error) throw feedResult.error;
   if (assignmentResult.error) throw assignmentResult.error;
+  if (ownContactResult.error) throw ownContactResult.error;
 
   const assignments = (assignmentResult.data ?? []) as Row[];
   const assignedShiftIds = [...new Set(assignments.map((row) => String(row.shift_id)))];
@@ -54,12 +57,16 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
 
   const shiftRows = dedupeRows([...(feedResult.data ?? []), ...(assignedShiftResult.data ?? [])] as Row[]);
   const employerIds = [...new Set(shiftRows.map((row) => String(row.employer_id)))];
-  const employerResult = employerIds.length
-    ? await supabase.from('employer_marketplace_profiles').select('id, name, average_rating, rating_count, verified_at').in('id', employerIds)
-    : { data: [], error: null };
-  if (employerResult.error) throw employerResult.error;
+  const [employerResult, employerContactResult] = employerIds.length
+    ? await Promise.all([
+        supabase.from('employer_marketplace_profiles').select('id, name, average_rating, rating_count, verified_at').in('id', employerIds),
+        supabase.from('employer_contacts').select('employer_id, phone').in('employer_id', employerIds),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+  if (employerResult.error || employerContactResult.error) throw new Error('Podaci poslodavca nijesu dostupni.');
 
   const employers = new Map(((employerResult.data ?? []) as Row[]).map((row) => [String(row.id), row]));
+  const employerContactPhones = new Map(((employerContactResult.data ?? []) as Row[]).map((row) => [String(row.employer_id), String(row.phone)]));
   const assignmentByShift = new Map<string, Row>();
   assignments.forEach((row) => {
     const shiftId = String(row.shift_id);
@@ -77,6 +84,9 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
         assignment,
         undefined,
         assignment ? ledgerByAssignment.get(String(assignment.id)) : undefined,
+        assignment && ['claimed', 'checked_in'].includes(String(assignment.status))
+          ? { counterpart_name: String(employers.get(String(row.employer_id))?.name ?? 'Poslodavac'), counterpart_phone: employerContactPhones.get(String(row.employer_id)) }
+          : undefined,
       );
     })
     .sort((left, right) => (left.startsAt ?? '').localeCompare(right.startsAt ?? ''));
@@ -97,6 +107,7 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   const worker: WorkerProfile = {
     id: userId,
     name: String(profile.full_name),
+    city: String(profile.city),
     initials: initials(String(profile.full_name)),
     verified: Boolean(profile.verified_at),
     score: Number(workerRow.reliability_score),
@@ -120,6 +131,7 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
     userId,
     employerId: null,
     profileName: worker.name,
+    contactPhone: ownContactResult.data?.phone ? String(ownContactResult.data.phone) : null,
     state: {
       shifts,
       worker,
@@ -140,15 +152,17 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
   if (membershipError || !membership) throw new Error('Poslodavac nije povezan sa nalogom.');
 
   const employerId = String(membership.employer_id);
-  const [employerResult, shiftResult, trustedResult, ledgerResult] = await Promise.all([
+  const [employerResult, shiftResult, trustedResult, ledgerResult, ownContactResult] = await Promise.all([
     supabase.from('employers').select('*').eq('id', employerId).single(),
     supabase.from('shifts').select('*').eq('employer_id', employerId).order('starts_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('worker_id').eq('employer_id', employerId),
     supabase.from('payment_ledger').select('assignment_id, amount_cents, status').eq('employer_id', employerId),
+    supabase.from('employer_contacts').select('phone').eq('employer_id', employerId).maybeSingle(),
   ]);
   if (employerResult.error || !employerResult.data) throw new Error('Poslodavac nije pronađen.');
   if (shiftResult.error) throw shiftResult.error;
   if (ledgerResult.error) throw ledgerResult.error;
+  if (ownContactResult.error) throw ownContactResult.error;
 
   const shiftRows = (shiftResult.data ?? []) as Row[];
   const shiftIds = shiftRows.map((row) => String(row.id));
@@ -163,14 +177,18 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     ...assignments.map((row) => String(row.worker_id)),
     ...(trustedResult.data ?? []).map((row) => String((row as Row).worker_id)),
   ])];
-  const [profileResult, workerResult] = workerIds.length
+  const [profileResult, workerResult, workerContactResult] = workerIds.length
     ? await Promise.all([
         supabase.from('profiles').select('id, full_name').in('id', workerIds),
         supabase.from('worker_profiles').select('user_id, reliability_score, skills').in('user_id', workerIds),
+        supabase.from('worker_contacts').select('user_id, phone').in('user_id', workerIds),
       ])
-    : [{ data: [], error: null }, { data: [], error: null }];
+    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+
+  if (profileResult.error || workerResult.error || workerContactResult.error) throw new Error('Podaci radnika nijesu dostupni.');
 
   const workerNames = new Map(((profileResult.data ?? []) as Row[]).map((row) => [String(row.id), String(row.full_name)]));
+  const workerPhones = new Map(((workerContactResult.data ?? []) as Row[]).map((row) => [String(row.user_id), String(row.phone)]));
   const workers = new Map(((workerResult.data ?? []) as Row[]).map((row) => [String(row.user_id), row]));
   const assignmentsByShift = new Map<string, Row[]>();
   assignments.forEach((row) => {
@@ -214,6 +232,9 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
       id: String(assignment.id),
       workerId: String(assignment.worker_id),
       workerName: workerNames.get(String(assignment.worker_id)) ?? 'Radnik',
+      contactPhone: ['claimed', 'checked_in'].includes(String(assignment.status))
+        ? workerPhones.get(String(assignment.worker_id))
+        : undefined,
       status: String(assignment.status),
       pay: Number(assignment.pay_cents) / 100,
       paymentStatus: normalizeLedgerStatus(ledgerByAssignment.get(String(assignment.id))),
@@ -226,11 +247,12 @@ async function getEmployerDashboard(userId: string, profile: Row): Promise<Dashb
     userId,
     employerId,
     profileName: String(profile.full_name),
+    contactPhone: ownContactResult.data?.phone ? String(ownContactResult.data.phone) : null,
     state: { shifts, worker: emptyWorker(), employer, activeShiftId: null },
   };
 }
 
-function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimedNames?: string[], paymentStatus?: string): Shift {
+function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimedNames?: string[], paymentStatus?: string, contact?: Row): Shift {
   const startsAt = new Date(String(row.starts_at));
   const endsAt = new Date(String(row.ends_at));
   const claimedCount = Number(row.claimed_count ?? claimedNames?.length ?? 0);
@@ -280,6 +302,8 @@ function mapShift(row: Row, employer: Row | undefined, assignment?: Row, claimed
     assignmentStatus: assignment ? String(assignment.status) : undefined,
     cancellationReason: assignment?.cancellation_reason ? String(assignment.cancellation_reason) : undefined,
     paymentStatus: normalizeLedgerStatus(paymentStatus),
+    contactName: contact?.counterpart_name ? String(contact.counterpart_name) : undefined,
+    contactPhone: contact?.counterpart_phone ? String(contact.counterpart_phone) : undefined,
   };
 }
 
@@ -381,7 +405,7 @@ function firstSkill(skills: unknown) {
 }
 
 function emptyWorker(): WorkerProfile {
-  return { id: '', name: '', initials: '', verified: false, score: 0, rating: null, ratingCount: 0, completedShifts: 0, scoreKnown: false, attendance: null, earningsWeek: 0, paidWeek: 0, pendingWeek: 0, authorizedWeek: 0, available: false, notificationsEnabled: false, skills: [], crewEmployers: [] };
+  return { id: '', name: '', city: '', initials: '', verified: false, score: 0, rating: null, ratingCount: 0, completedShifts: 0, scoreKnown: false, attendance: null, earningsWeek: 0, paidWeek: 0, pendingWeek: 0, authorizedWeek: 0, available: false, notificationsEnabled: false, skills: [], crewEmployers: [] };
 }
 
 function emptyEmployer(): EmployerProfile {

@@ -107,3 +107,27 @@ Worker-controlled browser permission → Web Push subscription stored under own-
 - Production remained at one profile and zero shifts, assignments and ledger rows after read-only verification. No production fixtures were created.
 - Supabase security adviser no longer reports the former security-definer view or callable automatic-RLS helper. The remaining `SECURITY DEFINER` warnings are the intentional authenticated marketplace RPCs, each with explicit role, ownership and state checks. `product_events` intentionally has no client policy or client grants.
 - Supabase performance adviser identified six missing foreign-key indexes; this batch added them. “Unused index” notices are expected before marketplace traffic exists and are not a reason to remove protective indexes yet.
+
+## Continuation — private assignment contact path (2026-09-07)
+
+### Newly identified P0 gap
+
+| Evidence | Affected users | User / business impact | Trust or safety risk | Effort | Correction | Verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| A confirmed assignment exposed no private way for the worker and business to reach each other | Workers and employers with active work | Arrival details, delays and last-minute operational changes could not be coordinated inside the product journey | No-shows, unsafe off-platform searching and false confidence that a confirmed shift was operationally ready | M | Collect one Montenegro contact number after login; require both parties to have one before a new commitment; reveal it only to the matched counterpart while the assignment is active | Phone helper tests, database-boundary tests, counterpart/non-counterpart RLS tests, 390 px and desktop browser checks |
+
+### Contact-state trace
+
+Avatar or required-contact prompt → labelled Montenegro phone field → authenticated server action → immutable account role and employer membership lookup → normalized E.164 value → role-specific contact table → own-row/member RLS. Claim and publish RPCs enforce contact readiness at the database boundary. Once an assignment is `claimed` or `checked_in`, each side can call the matched counterpart. RLS removes counterpart access when the assignment becomes terminal; contact numbers never enter the public shift feed.
+
+Legacy `profiles.phone` values are backfilled when valid and retained for a recoverable rollout, while browser `SELECT` and `UPDATE` privileges on that mixed-purpose column are removed. No production value is deleted by the migration.
+
+### Continuation verification
+
+- `npm run lint`: passed.
+- `npm test`: 11/11 tests passed, including local and international Montenegro phone formats.
+- `npx tsc --noEmit --incremental false`: strict TypeScript passed.
+- `npm run test:db`: the complete migration chain passed in a fresh database, including missing-contact rejection, authorized counterpart access, unrelated-user denial, expired access after a terminal assignment and legacy-column privilege removal.
+- `npm run build`: optimized Next.js 16 production build passed.
+- Desktop and 390 px browser checks passed with no horizontal overflow or console errors; the dialog retained a clear label, privacy explanation and 44 px primary action.
+- Production migration `20260907171142_add_assignment_contacts` was applied after explicit approval. Schema, RLS, grants and migration history were verified without creating a production fixture; the dependent Vercel deployment followed only after the database was ready.

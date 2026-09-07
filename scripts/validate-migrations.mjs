@@ -11,6 +11,7 @@ const migrationFiles = [
   'supabase/migrations/20260905182551_fix_no_show_terminal_state.sql',
   'supabase/migrations/20260906170318_add_foreign_key_indexes.sql',
   'supabase/migrations/20260906170718_block_expired_assignment_cancellation.sql',
+  'supabase/migrations/20260907171142_add_assignment_contacts.sql',
 ];
 
 const database = new PGlite();
@@ -96,6 +97,25 @@ const defaultAvailability = await database.query(`select available from public.w
 assert.equal(firstValue(defaultAvailability, 'available'), false, 'New workers must explicitly enable availability.');
 await database.exec(`update public.worker_profiles set available = true;`);
 
+// A reachable contact is required before either side can make a commitment.
+await actor(employerUserId);
+await assert.rejects(
+  () => publishShift({ requestId: '30000000-0000-4000-8000-000000000099' }),
+  /contact phone/i,
+);
+await assert.rejects(
+  () => database.exec(`insert into public.worker_contacts (user_id, phone) values ('${workerOneId}', '+382123')`),
+  /check constraint/i,
+);
+await database.exec(`
+  insert into public.employer_contacts (employer_id, phone) values
+    ('${employerId}', '+38267111111');
+  insert into public.worker_contacts (user_id, phone) values
+    ('${workerOneId}', '+38267222222'),
+    ('${workerTwoId}', '+38267333333'),
+    ('${workerThreeId}', '+38267444444');
+`);
+
 // Publishing is retry-safe: the same request ID returns one shift.
 await actor(employerUserId);
 const noShowRequestId = '30000000-0000-4000-8000-000000000001';
@@ -105,9 +125,37 @@ assert.equal(retriedShiftId, noShowShiftId, 'A retried publish must return the o
 const requestCount = await database.query(`select count(*)::integer as count from public.shifts where request_id = '${noShowRequestId}'`);
 assert.equal(firstValue(requestCount, 'count'), 1, 'A retried publish must not duplicate a shift.');
 
+await database.exec(`delete from public.employer_contacts where employer_id = '${employerId}'`);
+await assert.rejects(() => claimShift(workerOneId, noShowShiftId), /employer contact phone/i);
+await database.exec(`insert into public.employer_contacts (employer_id, phone) values ('${employerId}', '+38267111111')`);
+await database.exec(`delete from public.worker_contacts where user_id = '${workerOneId}'`);
+await assert.rejects(() => claimShift(workerOneId, noShowShiftId), /contact phone/i);
+await database.exec(`insert into public.worker_contacts (user_id, phone) values ('${workerOneId}', '+38267222222')`);
 const noShowAssignmentOne = await claimShift(workerOneId, noShowShiftId);
 const noShowAssignmentTwo = await claimShift(workerTwoId, noShowShiftId);
 await assert.rejects(() => claimShift(workerThreeId, noShowShiftId), /not available|already full/i);
+
+await actor(workerOneId);
+await database.exec('set role authenticated;');
+let visibleContacts = await database.query(`select phone from public.employer_contacts where employer_id = '${employerId}'`);
+assert.equal(visibleContacts.rows.length, 1, 'The assigned worker must see the business contact.');
+await database.exec('reset role;');
+
+await actor(employerUserId);
+await database.exec('set role authenticated;');
+visibleContacts = await database.query(`select phone from public.worker_contacts where user_id in ('${workerOneId}', '${workerTwoId}')`);
+assert.equal(visibleContacts.rows.length, 2, 'The employer must see active assigned worker contacts.');
+await database.exec('reset role;');
+
+// The browser-facing Data API exposes neither side's phone to an unrelated
+// authenticated account.
+await actor(workerThreeId);
+await database.exec('set role authenticated;');
+const unrelatedWorkerContacts = await database.query(`select phone from public.worker_contacts where user_id in ('${workerOneId}', '${workerTwoId}')`);
+const unrelatedEmployerContacts = await database.query(`select phone from public.employer_contacts where employer_id = '${employerId}'`);
+assert.equal(unrelatedWorkerContacts.rows.length, 0, 'An unrelated worker must not read worker contacts.');
+assert.equal(unrelatedEmployerContacts.rows.length, 0, 'An unrelated worker must not read business contacts.');
+await database.exec('reset role;');
 
 // If one worker is still unresolved after the scheduled end, the shift stays
 // operational. It completes exactly once after the final assignment is resolved.
@@ -120,6 +168,12 @@ await actor(employerUserId);
 await database.query(`select public.mark_assignment_no_show('${noShowAssignmentOne}'::uuid)`);
 let shiftState = await database.query(`select status from public.shifts where id = '${noShowShiftId}'`);
 assert.equal(firstValue(shiftState, 'status'), 'in_progress');
+await actor(workerOneId);
+await database.exec('set role authenticated;');
+visibleContacts = await database.query(`select phone from public.employer_contacts where employer_id = '${employerId}'`);
+assert.equal(visibleContacts.rows.length, 0, 'Contact access must expire when the assignment is no longer active.');
+await database.exec('reset role;');
+await actor(employerUserId);
 await database.query(`select public.mark_assignment_no_show('${noShowAssignmentTwo}'::uuid)`);
 shiftState = await database.query(`select status from public.shifts where id = '${noShowShiftId}'`);
 assert.equal(firstValue(shiftState, 'status'), 'completed');
@@ -225,6 +279,17 @@ const marketplaceProfileRelation = await database.query(`
 `);
 assert.equal(firstValue(marketplaceProfileRelation, 'relkind'), 'r');
 assert.equal(firstValue(marketplaceProfileRelation, 'relrowsecurity'), true);
+const contactSecurity = await database.query(`
+  select
+    has_column_privilege('authenticated', 'public.profiles', 'phone', 'select') as can_select_legacy_phone,
+    has_column_privilege('authenticated', 'public.profiles', 'phone', 'update') as can_update_legacy_phone,
+    (select relrowsecurity from pg_class where oid = 'public.worker_contacts'::regclass) as worker_contacts_rls,
+    (select relrowsecurity from pg_class where oid = 'public.employer_contacts'::regclass) as employer_contacts_rls
+`);
+assert.equal(firstValue(contactSecurity, 'can_select_legacy_phone'), false);
+assert.equal(firstValue(contactSecurity, 'can_update_legacy_phone'), false);
+assert.equal(firstValue(contactSecurity, 'worker_contacts_rls'), true);
+assert.equal(firstValue(contactSecurity, 'employer_contacts_rls'), true);
 
 console.log('all migrations and marketplace state transitions validated');
 await database.close();

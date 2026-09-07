@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cancellationScorePenalty, completionPercent, isCheckInAvailable, isCheckOutAvailable, parseRequirements, remainingSpots, shiftsOverlap, type Shift } from './smjena.ts';
+import { cancellationScorePenalty, completionPercent, formatMontenegroPhone, isCheckInAvailable, isCheckOutAvailable, normalizeMontenegroPhone, parseRequirements, remainingSpots, shiftsOverlap, type Shift } from './smjena.ts';
 
 function shift(overrides: Partial<Shift> = {}): Shift {
   return {
@@ -73,4 +73,13 @@ test('overlap detection permits back-to-back work but blocks intersecting shifts
   const item = shift();
   assert.equal(shiftsOverlap(item, shift({ startsAt: '2026-09-05T22:00:00.000Z', endsAt: '2026-09-06T02:00:00.000Z' })), false);
   assert.equal(shiftsOverlap(item, shift({ startsAt: '2026-09-05T21:00:00.000Z', endsAt: '2026-09-06T01:00:00.000Z' })), true);
+});
+
+test('Montenegro phone numbers are stored in one E.164 format', () => {
+  assert.equal(normalizeMontenegroPhone('067 123 456'), '+38267123456');
+  assert.equal(normalizeMontenegroPhone('+382 (67) 123-456'), '+38267123456');
+  assert.equal(normalizeMontenegroPhone('00382 67 123 456'), '+38267123456');
+  assert.equal(normalizeMontenegroPhone('67 123 456'), '+38267123456');
+  assert.equal(normalizeMontenegroPhone('12345'), null);
+  assert.equal(formatMontenegroPhone('+38267123456'), '+382 67 123 456');
 });
