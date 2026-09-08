@@ -10,6 +10,10 @@
 
 # testing
 /coverage
+/blob-report/
+/playwright/.auth/
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
@@ -34,6 +38,7 @@ yarn-error.log*
 .vercel
 next-env.d.ts
 /dist/
+*.tsbuildinfo
 /.wrangler/
 /outputs/
 /work/
