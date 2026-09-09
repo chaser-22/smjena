@@ -1,0 +1,789 @@
+.publicPage,
+.authPage {
+  --ink: #101d34;
+  --paper: #f4f1e9;
+  --orange: #ff5b35;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: 100vh;
+}
+.publicPage a,
+.authPage a {
+  text-underline-offset: 4px;
+}
+.publicPage :focus-visible,
+.authPage :focus-visible {
+  outline: 3px solid #b83b1d;
+  outline-offset: 5px;
+}
+.header {
+  max-width: 1320px;
+  margin: auto;
+  padding: 26px 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #101d3426;
+  gap: 24px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  font-size: 25px;
+  font-weight: 950;
+  letter-spacing: -1.5px;
+  gap: 9px;
+  min-height: 44px;
+}
+.brand > span:first-child {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: var(--orange);
+  color: var(--ink);
+  border-radius: 8px;
+}
+.brand .brandPeriod {
+  margin-left: -9px;
+  color: #b83b1d;
+}
+.header nav {
+  display: flex;
+  align-items: center;
+  gap: 38px;
+  font-size: 13px;
+  font-weight: 750;
+}
+.header nav a,
+.footer > a:last-child {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 12px;
+}
+.hero {
+  max-width: 1320px;
+  padding: 64px 48px 74px;
+  margin: auto;
+  display: grid;
+  grid-template-columns: 1.08fr 1fr;
+  gap: 52px;
+  align-items: center;
+}
+.kicker {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.6;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.signalDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #167354;
+  box-shadow: 0 0 0 4px #16735412;
+}
+.hero h1 {
+  font-size: clamp(56px, 5.9vw, 85px);
+  letter-spacing: -0.075em;
+  line-height: 1.02;
+  font-weight: 900;
+  margin: 28px 0 25px;
+}
+.hero h1 > span {
+  color: #bd391d;
+}
+.heroDescription {
+  font-size: 16px;
+  max-width: 370px;
+  line-height: 1.7;
+  color: #495364;
+  margin-bottom: 29px;
+}
+.primary {
+  display: inline-flex;
+  min-height: 56px;
+  padding: 15px 24px;
+  background: var(--orange);
+  color: var(--ink);
+  align-items: center;
+  gap: 35px;
+  font-size: 15px;
+  font-weight: 850;
+  border-radius: 5px;
+  box-shadow: 0 4px 0 #bb3b22;
+  transition:
+    transform 0.16s,
+    box-shadow 0.16s;
+}
+.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 #bb3b22;
+}
+.primary:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #bb3b22;
+}
+.returning {
+  margin-top: 22px;
+  font-size: 12px;
+  color: #56606d;
+}
+.returning a {
+  color: var(--ink);
+  font-weight: 750;
+  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.employerEntry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 44px;
+  margin-top: 3px;
+  font-size: 12px;
+}
+.employerEntry strong {
+  text-decoration: underline;
+}
+.poster {
+  position: relative;
+  background: var(--ink);
+  color: var(--paper);
+  min-height: 552px;
+  padding: 23px 27px;
+  border-radius: 3px;
+}
+.posterTop,
+.posterFoot {
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: #b8c0ce;
+}
+.posterTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+.sign {
+  margin: 27px 0 0;
+  font-weight: 950;
+  letter-spacing: -0.09em;
+  font-size: clamp(75px, 8vw, 118px);
+  line-height: 0.82;
+  color: #ff7953;
+}
+.sign > span {
+  display: block;
+}
+.signStar {
+  display: inline-block;
+  font-size: 0.53em;
+  vertical-align: top;
+  margin: 7px 0 0 5px;
+  color: #f4f1e9;
+  animation: sign-turn 1.2s ease-out both;
+}
+.ticket {
+  margin: 27px -8px 0 25px;
+  padding: 22px 22px 0;
+  background: var(--paper);
+  color: var(--ink);
+  transform: rotate(-4deg);
+  box-shadow: 0 16px 24px #0003;
+  position: relative;
+  animation: ticket-arrive 0.8s 0.15s both;
+}
+.ticket::after {
+  content: '';
+  height: 8px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -7px;
+  background:
+    linear-gradient(135deg, var(--paper) 5px, transparent 0) 0 0/10px 10px,
+    linear-gradient(225deg, var(--paper) 5px, transparent 0) 0 0/10px 10px;
+}
+.ticket figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font:
+    700 9px ui-monospace,
+    monospace;
+  letter-spacing: 0.03em;
+  border-bottom: 1px dashed #101d3455;
+  padding-bottom: 14px;
+}
+.ticket ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ticket li {
+  animation: panel-enter 0.45s 0.4s both;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 0;
+  border-bottom: 1px solid #101d3417;
+}
+.ticket li:nth-child(2) {
+  animation-delay: 0.65s;
+}
+.ticket li:nth-child(3) {
+  animation-delay: 0.9s;
+}
+.ticket li > span {
+  font:
+    12px ui-monospace,
+    monospace;
+  color: #586275;
+}
+.ticket strong {
+  font-size: 13px;
+  display: block;
+  letter-spacing: -0.02em;
+}
+.ticket small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #57606a;
+  margin-top: 3px;
+}
+.ticket .ticketCheck {
+  color: #167354;
+}
+.ticketBottom {
+  font:
+    8px ui-monospace,
+    monospace;
+  display: flex;
+  justify-content: space-between;
+  padding: 17px 0;
+  gap: 12px;
+}
+.ticketBottom span {
+  letter-spacing: 2px;
+}
+.posterFoot {
+  margin-top: 35px;
+  font-size: 8px;
+}
+.tradeStrip {
+  background: #e6e2d8;
+  border-block: 1px solid #101d3426;
+  display: flex;
+  gap: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  flex-wrap: wrap;
+}
+.tradeStrip > span:nth-child(even) {
+  color: #bd391d;
+  font-size: 23px;
+  line-height: 1;
+}
+.how,
+.trust {
+  max-width: 1320px;
+  margin: auto;
+  padding: 88px 48px;
+}
+.sectionHeading {
+  position: relative;
+}
+.sectionHeading > svg {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 48px;
+  height: 48px;
+  stroke-width: 1;
+}
+.how h2,
+.trust h2 {
+  font-size: clamp(32px, 4vw, 53px);
+  font-weight: 850;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
+  margin-top: 20px;
+}
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 48px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 34px;
+}
+.steps li {
+  border-top: 1px solid #101d3440;
+  padding-top: 20px;
+}
+.steps li > span {
+  font:
+    11px ui-monospace,
+    monospace;
+  color: #a6371e;
+}
+.steps h3 {
+  margin: 22px 0 10px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.steps p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #495364;
+  max-width: 320px;
+}
+.business {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 70px max(48px, calc((100vw - 1224px) /2));
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: 65px;
+}
+.business .kicker {
+  color: #c4cbd5;
+}
+.business :focus-visible {
+  outline-color: #f4f1e9;
+}
+.business h2 {
+  font-weight: 850;
+  font-size: clamp(40px, 4.5vw, 62px);
+  line-height: 1.08;
+  letter-spacing: -0.055em;
+  margin: 22px 0 32px;
+}
+.business h2 span {
+  color: #ff8866;
+}
+.businessCopy > p {
+  font-size: 19px;
+  line-height: 1.65;
+}
+.businessCopy ul {
+  list-style: none;
+  margin: 25px 0;
+  padding: 0;
+}
+.businessCopy li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+  font-size: 14px;
+}
+.businessCopy li svg {
+  width: 17px;
+  color: #77f0bd;
+}
+.businessCopy .finePrint {
+  font-size: 12px;
+  color: #b8c0ce;
+}
+.trust {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  column-gap: 75px;
+}
+.trust details {
+  border-bottom: 1px solid #101d3435;
+}
+.trust summary {
+  min-height: 70px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 750;
+  list-style: none;
+}
+.trust summary::-webkit-details-marker {
+  display: none;
+}
+.trust summary svg {
+  width: 17px;
+  flex-shrink: 0;
+}
+.trust details[open] summary svg {
+  transform: rotate(90deg);
+}
+.trust details p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #495364;
+  padding: 0 22px 22px 0;
+}
+.footer {
+  max-width: 1224px;
+  margin: auto;
+  border-top: 1px solid #101d3426;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 25px 0;
+  font-size: 12px;
+}
+.footer p {
+  color: #56606d;
+}
+.authMain {
+  max-width: 1320px;
+  margin: auto;
+  padding: 60px 48px 80px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 100px;
+}
+.authStory {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 38px;
+  min-height: 590px;
+  position: relative;
+}
+.authStory h2 {
+  font-size: clamp(45px, 5vw, 70px);
+  line-height: 1.04;
+  letter-spacing: -0.065em;
+  font-weight: 900;
+  margin: 52px 0 25px;
+}
+.authStory h2 span {
+  color: #ff8866;
+}
+.authStory > p {
+  max-width: 300px;
+  color: #c4cbd5;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.authStory .kicker {
+  color: #c4cbd5;
+  font-size: 10px;
+}
+.authStoryFoot {
+  border-top: 1px solid #ffffff30;
+  margin-top: 55px;
+  padding-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  font-size: 12px;
+  color: #c4cbd5;
+}
+.authStoryFoot svg {
+  color: #77f0bd;
+  flex-shrink: 0;
+}
+.authPanel {
+  padding-top: 14px;
+  max-width: 450px;
+  width: 100%;
+}
+.authPanel h1 {
+  font-size: clamp(32px, 3vw, 42px);
+  font-weight: 850;
+  letter-spacing: -0.055em;
+  line-height: 1.1;
+  margin: 18px 0 12px;
+}
+.authIntro {
+  color: #495364;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+.authPanel :global([role='tablist']) {
+  background: transparent;
+  border-bottom: 1px solid #101d3433;
+  padding: 0;
+  border-radius: 0;
+  gap: 20px;
+}
+.authPanel :global([role='tab']) {
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 48px;
+}
+.authPanel :global([role='tab'][aria-selected='true']) {
+  background: transparent;
+  border-bottom: 3px solid #b83b1d;
+}
+.authPanel :global(input:not([type='radio']):not([type='hidden'])),
+.authPanel select {
+  background: #fffefa;
+  border-radius: 4px;
+  border-color: #9ca2a7;
+  font-size: 16px;
+}
+.authPanel :global(button[type='submit']) {
+  background: var(--ink);
+  color: white;
+  border-radius: 4px;
+  min-height: 52px;
+}
+.authPanel :global(button[type='submit']):hover {
+  background: #273a57;
+}
+.authPanel :global(.text-slate-400),
+.authPanel :global(.text-slate-500) {
+  color: #576170;
+}
+.authPanel :global([role='tabpanel']) {
+  animation: panel-enter 0.2s ease-out;
+}
+.authError {
+  padding: 16px;
+  border-left: 3px solid #b33422;
+  background: #ffe4db;
+  color: #782515;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 24px;
+}
+@keyframes ticket-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(18px) rotate(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(-4deg);
+  }
+}
+@keyframes sign-turn {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(0);
+  }
+}
+@keyframes panel-enter {
+  from {
+    opacity: 0.4;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (min-width: 1440px) {
+  .hero {
+    padding-top: 80px;
+    padding-bottom: 90px;
+  }
+}
+@media (max-width: 1000px) {
+  .hero {
+    gap: 28px;
+    padding: 45px 32px 55px;
+  }
+  .hero h1 {
+    font-size: 62px;
+  }
+  .poster {
+    padding: 20px;
+    min-height: 500px;
+  }
+  .sign {
+    font-size: 88px;
+  }
+  .ticket {
+    margin-left: 0;
+    padding: 18px 16px 0;
+  }
+  .ticket strong {
+    font-size: 12px;
+  }
+  .authMain {
+    gap: 40px;
+    padding: 40px 32px;
+  }
+  .authStory {
+    padding: 28px;
+  }
+  .footer {
+    margin-inline: 32px;
+  }
+}
+@media (max-width: 720px) {
+  .header {
+    padding: 16px 22px;
+  }
+  .brand {
+    font-size: 23px;
+  }
+  .header nav {
+    gap: 0;
+  }
+  .navAbout {
+    display: none !important;
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 44px;
+    padding: 38px 22px 45px;
+  }
+  .hero h1 {
+    font-size: clamp(52px, 11vw, 76px);
+    margin-top: 23px;
+  }
+  .heroDescription {
+    font-size: 15px;
+  }
+  .hero .primary {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .poster {
+    width: 100%;
+    max-width: 480px;
+    margin: auto;
+    min-height: 520px;
+    padding: 24px;
+  }
+  .sign {
+    font-size: 86px;
+  }
+  .ticket {
+    margin: 25px 0 0 14px;
+  }
+  .ticket strong {
+    font-size: 13px;
+  }
+  .tradeStrip {
+    gap: 14px;
+    padding: 20px 15px;
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+  .tradeStrip > span:nth-child(even) {
+    font-size: 15px;
+  }
+  .how,
+  .trust {
+    padding: 52px 22px;
+  }
+  .steps {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    margin-top: 30px;
+  }
+  .steps h3 {
+    margin-top: 13px;
+  }
+  .steps p {
+    max-width: 100%;
+  }
+  .sectionHeading > svg {
+    width: 30px;
+    height: 30px;
+  }
+  .business {
+    padding: 48px 22px;
+    grid-template-columns: 1fr;
+    gap: 35px;
+  }
+  .businessCopy > p {
+    font-size: 17px;
+  }
+  .trust {
+    display: block;
+  }
+  .trustRows {
+    margin-top: 24px;
+  }
+  .trust summary {
+    font-size: 14px;
+  }
+  .footer {
+    margin-inline: 22px;
+    flex-wrap: wrap;
+  }
+  .footer p {
+    order: 3;
+    width: 100%;
+  }
+  .authMain {
+    display: block;
+    padding: 32px 22px 55px;
+  }
+  .authStory {
+    display: none;
+  }
+  .authPanel {
+    max-width: 480px;
+    margin: auto;
+    padding: 0;
+  }
+  .authPanel h1 {
+    font-size: 34px;
+  }
+}
+@media (max-width: 360px) {
+  .poster {
+    padding: 19px;
+    min-height: 490px;
+  }
+  .sign {
+    font-size: 74px;
+  }
+  .ticket {
+    margin-left: 0;
+  }
+  .ticket strong {
+    font-size: 11px;
+  }
+  .ticketBottom {
+    font-size: 7px;
+  }
+  .tradeStrip {
+    gap: 9px;
+  }
+  .header {
+    padding-inline: 18px;
+  }
+  .hero,
+  .authMain {
+    padding-inline: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket,
+  .signStar,
+  .authPanel :global([role='tabpanel']) {
+    animation: none;
+  }
+  .primary {
+    transition: none;
+  }
+}
