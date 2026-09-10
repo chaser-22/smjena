@@ -169,6 +169,20 @@ test('small screens and reduced motion retain the full usable experience', async
   ]);
 });
 
+test('shift signal loops, pauses and respects reduced motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/');
+  const packet = page.locator('svg g').first();
+  expect(await packet.evaluate((element) => getComputedStyle(element).animationIterationCount)).toBe('infinite');
+  await page.getByRole('button', { name: 'Pauziraj animaciju' }).click();
+  expect(await packet.evaluate((element) => getComputedStyle(element).animationPlayState)).toBe('paused');
+  await page.getByRole('button', { name: 'Pokreni animaciju' }).click();
+  expect(await packet.evaluate((element) => getComputedStyle(element).animationPlayState)).toBe('running');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await packet.evaluate((element) => getComputedStyle(element).animationName)).toBe('none');
+  await expect(page.getByRole('button', { name: 'Pauziraj animaciju' })).toBeHidden();
+});
+
 test('interrupted submissions show pending and recovery without losing the email', async ({
   page,
   baseURL,

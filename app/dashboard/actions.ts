@@ -40,7 +40,7 @@ export async function updateContactAction(phone: string): Promise<ActionResult> 
   if (profileError || !profile) return failure('Profil nije pronađen.');
 
   if (profile.role === 'worker') {
-    const { error } = await supabase.from('worker_contacts').upsert({ user_id: data.user.id, phone: normalized, updated_at: new Date().toISOString() });
+    const { error } = await saveContact(supabase, 'worker_contacts', 'user_id', data.user.id, normalized);
     if (error) return databaseFailure(error.message);
   } else if (profile.role === 'employer') {
     const { data: membership, error: membershipError } = await supabase
@@ -50,13 +50,28 @@ export async function updateContactAction(phone: string): Promise<ActionResult> 
       .limit(1)
       .single();
     if (membershipError || !membership) return failure('Nalog nije povezan sa poslodavcem.');
-    const { error } = await supabase.from('employer_contacts').upsert({ employer_id: membership.employer_id, phone: normalized, updated_at: new Date().toISOString() });
+    const { error } = await saveContact(supabase, 'employer_contacts', 'employer_id', membership.employer_id, normalized);
     if (error) return databaseFailure(error.message);
   } else {
     return failure('Nemaš dozvolu za ovu akciju.');
   }
   revalidatePath('/dashboard');
   return { ok: true };
+}
+
+async function saveContact(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  table: 'worker_contacts' | 'employer_contacts',
+  key: 'user_id' | 'employer_id',
+  ownerId: string,
+  phone: string,
+) {
+  const values = { phone, updated_at: new Date().toISOString() };
+  // A merge-upsert also UPDATEs its primary key, which is deliberately not
+  // writable. Insert first, then update only mutable columns on a conflict.
+  const inserted = await supabase.from(table).insert({ [key]: ownerId, ...values });
+  if (inserted.error?.code !== '23505') return inserted;
+  return supabase.from(table).update(values).eq(key, ownerId).select('phone').single();
 }
 
 export async function claimShiftAction(shiftId: string, source: 'dashboard' | 'push' = 'dashboard'): Promise<ActionResult> {

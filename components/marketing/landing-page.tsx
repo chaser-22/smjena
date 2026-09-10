@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowDown, ArrowUpRight, Check, ArrowRight } from 'lucide-react';
 import { PublicBrand } from './public-brand';
+import { ShiftSignal } from './shift-signal';
 import styles from './public.module.css';
 
 export function LandingPage() {
@@ -64,6 +65,7 @@ export function LandingPage() {
                 POSLA<span className={styles.signStar}>✳</span>
               </span>
             </div>
+            <ShiftSignal />
             <figure className={styles.ticket}>
               <figcaption>
                 KAKO FUNKCIONIŠE SMJENA{' '}

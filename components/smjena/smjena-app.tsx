@@ -40,6 +40,7 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
   const [pending, startTransition] = useTransition();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
   const { state, role } = data;
   const activeShift = state.shifts.find((shift) => shift.id === state.activeShiftId);
   const openEmployerShift = state.shifts.find((shift) => shift.status === 'open');
@@ -167,8 +168,20 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
           onOpenChange={setContactOpen}
           phone={data.contactPhone}
           busy={pending}
+          error={contactError}
           onSave={async (phone) => {
-            const saved = await run(() => updateContactAction(phone), data.contactPhone ? 'Kontakt telefon je ažuriran' : 'Kontakt telefon je dodat');
+            setContactError(null);
+            const saved = await run(async () => {
+              try {
+                const result = await updateContactAction(phone);
+                if (!result.ok) setContactError(result.error);
+                return result;
+              } catch {
+                const error = 'Veza je prekinuta. Broj nije potvrđen kao sačuvan. Pokušaj ponovo.';
+                setContactError(error);
+                return { ok: false, error };
+              }
+            }, data.contactPhone ? 'Kontakt telefon je ažuriran' : 'Kontakt telefon je dodat');
             if (saved) setContactOpen(false);
           }}
         />
@@ -178,13 +191,14 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
   );
 }
 
-function ContactDialog({ open, onOpenChange, phone, busy, onSave }: { open: boolean; onOpenChange: (open: boolean) => void; phone: string | null; busy: boolean; onSave: (phone: string) => Promise<void> }) {
+function ContactDialog({ open, onOpenChange, phone, busy, error, onSave }: { open: boolean; onOpenChange: (open: boolean) => void; phone: string | null; busy: boolean; error: string | null; onSave: (phone: string) => Promise<void> }) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!busy) onOpenChange(nextOpen); }}>
       <DialogContent className="rounded-[24px] sm:max-w-sm">
         <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void onSave(String(data.get('phone') ?? '')); }}>
           <DialogHeader><div className="mb-2 grid size-11 place-items-center rounded-2xl bg-[#fff0eb] text-[#ff5b35]"><PhoneCall className="size-5" /></div><DialogTitle className="font-display text-2xl font-black">Kontakt telefon</DialogTitle><DialogDescription>Koristi se samo za dogovor oko potvrđene smjene. Ne prikazuje se u javnoj ponudi.</DialogDescription></DialogHeader>
           <Field className="mt-5"><FieldLabel htmlFor="contact-phone">Broj iz Crne Gore</FieldLabel><Input id="contact-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" defaultValue={phone ? formatMontenegroPhone(phone) : ''} placeholder="067 123 456" required className="h-11 rounded-xl" /><p className="mt-1 text-[11px] leading-5 text-slate-500">Prihvatamo 067 123 456 ili +382 67 123 456.</p></Field>
+          {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p>}
           <Button type="submit" disabled={busy} className="mt-5 h-11 w-full rounded-xl bg-[#ff5b35] font-extrabold hover:bg-[#e94b27]">{busy ? 'Čuvam…' : 'Sačuvaj broj'}</Button>
         </form>
       </DialogContent>

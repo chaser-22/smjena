@@ -107,6 +107,32 @@ await assert.rejects(
   () => database.exec(`insert into public.worker_contacts (user_id, phone) values ('${workerOneId}', '+382123')`),
   /check constraint/i,
 );
+// Exercise the same authenticated column privileges as the real Data API.
+// Merge-upserts try to update immutable ownership keys, even on first insert.
+for (const [table, key, owner, user] of [
+  ['worker_contacts', 'user_id', workerOneId, workerOneId],
+  ['employer_contacts', 'employer_id', employerId, employerUserId],
+]) {
+  await actor(user);
+  await database.exec('set role authenticated;');
+  await assert.rejects(() => database.query(`
+    insert into public.${table} (${key}, phone, updated_at)
+    values ('${owner}', '+38267123456', now())
+    on conflict (${key}) do update set ${key} = excluded.${key}, phone = excluded.phone, updated_at = excluded.updated_at
+  `), /permission denied/i);
+  await database.query(`insert into public.${table} (${key}, phone, updated_at) values ('${owner}', '+38267123456', now())`);
+  await assert.rejects(() => database.query(`insert into public.${table} (${key}, phone) values ('${owner}', '+38267654321')`), /duplicate key/i);
+  const saved = await database.query(`update public.${table} set phone = '+38267654321', updated_at = now() where ${key} = '${owner}' returning phone`);
+  assert.equal(saved.rows[0].phone, '+38267654321', 'Existing contacts must update without changing ownership.');
+  await database.exec('reset role;');
+  await actor(workerThreeId);
+  await database.exec('set role authenticated;');
+  const forbidden = await database.query(`update public.${table} set phone = '+38267000000' where ${key} = '${owner}' returning phone`);
+  assert.equal(forbidden.rows.length, 0, 'An unrelated account cannot change a contact.');
+  await database.exec('reset role;');
+  await database.query(`delete from public.${table} where ${key} = '${owner}'`);
+}
+
 await database.exec(`
   insert into public.employer_contacts (employer_id, phone) values
     ('${employerId}', '+38267111111');
