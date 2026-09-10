@@ -25,9 +25,15 @@
 - Isolated local Supabase transport stub: login sends `create_user: false`; employer registration sends the chosen role and company; success identifies the destination email; rate-limit errors preserve input. No production email or account was created. These are simulated transport checks, not proof of email delivery.
 - Dependency audit: zero reported vulnerabilities.
 
+## Production verification and final correction — 10 September
+
+- Commit `8581cb7` deployed successfully; GitHub Quality CI passed.
+- Production public suite: 18 passed, with two local-only interrupted-request tests intentionally skipped. Homepage browser runtime-error capture was empty; the generated sharing image metadata resolved to the production domain.
+- Final screenshot review caught staggered ticket-row fades still enabled under reduced motion. Disabled those row animations and expanded the regression test to require all three rows to have no animation and full opacity. Both local production-build regression cases passed, as did the full code/build/database checks again.
+
 ## Limits and follow-up
 
 - Actual inbox delivery and valid, expired or reused magic-link exchanges still need a controlled staging inbox and isolated Supabase project. A missing-code callback test does not prove those exchanges.
 - No authenticated dashboard session or marketplace mutation was exercised for this public-only redesign.
 - Automated accessibility scans and keyboard checks are not a full manual screen-reader certification. Core Web Vitals were not measured in the field.
-- Production browser checks must run after the Git-triggered Vercel deployment. No production data mutations are permitted in that suite.
+- No production data mutations are permitted in the public browser suite.

@@ -156,6 +156,17 @@ test('small screens and reduced motion retain the full usable experience', async
       .locator('figure')
       .evaluate((element) => getComputedStyle(element).animationName),
   ).toBe('none');
+  const ticketRows = await page.locator('figure li').evaluateAll((rows) =>
+    rows.map((row) => ({
+      animation: getComputedStyle(row).animationName,
+      opacity: getComputedStyle(row).opacity,
+    })),
+  );
+  expect(ticketRows).toEqual([
+    { animation: 'none', opacity: '1' },
+    { animation: 'none', opacity: '1' },
+    { animation: 'none', opacity: '1' },
+  ]);
 });
 
 test('interrupted submissions show pending and recovery without losing the email', async ({

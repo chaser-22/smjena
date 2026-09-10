@@ -779,6 +779,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .ticket,
+  .ticket li,
   .signStar,
   .authPanel :global([role='tabpanel']) {
     animation: none;
