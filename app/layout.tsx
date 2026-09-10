@@ -10,7 +10,7 @@ const productionUrl =
       ? `https://${process.env.VERCEL_URL}`
       : 'http://localhost:3000');
 
-const title = 'SMJENA — Tvoj grad. Tvoja sljedeća smjena.';
+const title = 'SMJENA — Kad fali jedan.';
 const description =
   'Hitne ugostiteljske smjene u Crnoj Gori. Objavi potrebu ili uzmi dostupnu smjenu bez oglasa i CV-a.';
 

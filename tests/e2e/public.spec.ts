@@ -101,7 +101,7 @@ test('homepage role entrances carry the choice into registration', async ({
 }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
-    'Tvoj grad.',
+    'Kad fali',
   );
   await page.getByRole('link', { name: 'Pronađi smjenu', exact: true }).click();
   await expect(
@@ -133,7 +133,7 @@ test('keyboard navigation switches auth intent and opens trust explanations', as
   await page.getByText('Kako se prati naknada?', { exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(
-    page.getByText(/Evidencija sama ne izvršava bankovnu uplatu/),
+    page.getByText(/ne izvršava bankovnu uplatu/),
   ).toBeVisible();
 });
 
@@ -156,31 +156,52 @@ test('small screens and reduced motion retain the full usable experience', async
       .locator('figure')
       .evaluate((element) => getComputedStyle(element).animationName),
   ).toBe('none');
-  const ticketRows = await page.locator('figure li').evaluateAll((rows) =>
-    rows.map((row) => ({
-      animation: getComputedStyle(row).animationName,
-      opacity: getComputedStyle(row).opacity,
-    })),
-  );
-  expect(ticketRows).toEqual([
+  const dispatchStates = await page
+    .getByTestId('dispatch-states')
+    .locator(':scope > div')
+    .evaluateAll((rows) =>
+      rows.map((row) => ({
+        animation: getComputedStyle(row).animationName,
+        opacity: getComputedStyle(row).opacity,
+      })),
+    );
+  expect(dispatchStates).toEqual([
     { animation: 'none', opacity: '1' },
     { animation: 'none', opacity: '1' },
     { animation: 'none', opacity: '1' },
   ]);
 });
 
-test('shift signal loops, pauses and respects reduced motion', async ({ page }) => {
+test('shift signal loops, pauses and respects reduced motion', async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/');
-  const packet = page.locator('svg g').first();
-  expect(await packet.evaluate((element) => getComputedStyle(element).animationIterationCount)).toBe('infinite');
+  const packet = page.getByTestId('signal-packet');
+  expect(
+    await packet.evaluate(
+      (element) => getComputedStyle(element).animationIterationCount,
+    ),
+  ).toBe('infinite');
   await page.getByRole('button', { name: 'Pauziraj animaciju' }).click();
-  expect(await packet.evaluate((element) => getComputedStyle(element).animationPlayState)).toBe('paused');
+  expect(
+    await packet.evaluate(
+      (element) => getComputedStyle(element).animationPlayState,
+    ),
+  ).toBe('paused');
   await page.getByRole('button', { name: 'Pokreni animaciju' }).click();
-  expect(await packet.evaluate((element) => getComputedStyle(element).animationPlayState)).toBe('running');
+  expect(
+    await packet.evaluate(
+      (element) => getComputedStyle(element).animationPlayState,
+    ),
+  ).toBe('running');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  expect(await packet.evaluate((element) => getComputedStyle(element).animationName)).toBe('none');
-  await expect(page.getByRole('button', { name: 'Pauziraj animaciju' })).toBeHidden();
+  expect(
+    await packet.evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('none');
+  await expect(
+    page.getByRole('button', { name: 'Pauziraj animaciju' }),
+  ).toBeHidden();
 });
 
 test('interrupted submissions show pending and recovery without losing the email', async ({
