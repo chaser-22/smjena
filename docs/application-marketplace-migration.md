@@ -1,8 +1,67 @@
 # Application marketplace migration
 
+## Deployment record — 2026-09-14
+
+The owner authorized deployment to the existing pre-launch production environment.
+Phases 1–3 were applied to Supabase `deshfuafmxzdfvpobyyp` and commit `221030f`
+was pushed to `main`. The new public routes are live at `https://smjena.vercel.app`.
+Production read-only browser verification: 26 desktop/mobile tests passed, two
+local-only fault-injection cases skipped. The initial inventory contained two
+profiles, one employer, and zero shifts, assignments or payment records. Before/
+after fingerprints of existing profiles, employers and contact rows matched.
+No database backup/restore was performed or claimed; these were additive migrations.
+
+The remote migration tool assigned execution-time versions. Local SQL files were
+renamed to those recorded versions without changing their SQL; production migration
+history was **not** edited. Do not reapply the old filenames from earlier commits.
+
+Pilot enablement is still pending explicit confirmation of the existing workspace
+(`Marko`, Cetinje). A combined history-repair/pilot-enablement SQL request was rejected
+by safety review; a read-only check confirmed zero enabled workspaces. No authenticated
+pilot fixtures or public test ads were created. Separate staging remains supported,
+but is no longer a mandatory infrastructure choice for this owner-approved pilot.
+
+Vercel's connector returned 403 and listed no teams. Deployment used the existing
+GitHub integration; Vercel build logs, exact deployment ID, runtime error scan and
+drain configuration are not available through that connection. Public behavior was
+verified independently. Supabase security advisors reported legacy authenticated
+definer RPC warnings, intentional deny-all internal-table RLS notices, and disabled
+leaked-password protection. These are not a clean security certification.
+
+## Phase 4A: billing foundation
+
+Migration `20260914173021_employer_billing_foundation.sql` was applied to the
+same pre-launch production database. Hosted read-only owner-role verification
+returned zero credit rows and confirmed authenticated users cannot insert grants
+or usage. Passed locally: lint, strict TypeScript/production build, unit tests,
+both database upgrade suites, 28 public desktop/mobile browser tests, and dependency
+audit (zero vulnerabilities). Actual authenticated billing browser states remain
+untested; database owner/worker/manager/anonymous access was exercised in PGlite.
+
+This batch adds an owner-only `/employer/billing?workspace=...` read-only screen;
+private plan definitions; separate standard-post and SOS grant types; expiring and
+revocable grants; immutable usage records; and RLS-preserving balance/total views.
+No plans, credits, usage, purchases or promotions are seeded. No price is assumed.
+Managers and workers cannot see billing; manager access awaits a product decision.
+No billing/credit write is exposed to browser roles. Posting still uses the pilot
+gate and does not debit credits; the UI explicitly distinguishes these concepts.
+
+Usage guards serialize on the grant, check its validity and workspace, reject
+over-consumption, and prevent duplicate standard-post debits. They are a foundation,
+not a public redemption workflow. Phase 4B must add idempotent atomic redemption
+inside publishing/promotion transactions, approved pricing/refund rules, plan grant
+approval, timed SOS activation and ranking, plus real PostgreSQL concurrent tests.
+Never call a debit alone and then publish in a separate transaction. SOS usage does
+not alter `pay_cents`; no wage ledger or payment-provider integration is added.
+
+Remaining Phase 4 work: transactional notification outbox/delivery, trusted-worker
+invitations to apply, timed SOS entitlements, and privacy-conscious funnel reporting.
+General public launch still requires authenticated acceptance/contact verification,
+reliable offer delivery, commercial/legal decisions and navigation/copy cutover.
+
 ## Phase 1: model isolation
 
-Implementation: `20260913213702_isolate_marketplace_models.sql`.
+Implementation: `20260914171829_isolate_marketplace_models.sql` (production-recorded version).
 This repository change does **not** enable applications or deploy a database
 migration automatically. The current claim UI remains unchanged.
 
@@ -82,7 +141,7 @@ not bulk-convert rows or delete historical ledger records.
 
 ## Phase 2: account capabilities and safe public browsing
 
-Implementation: `20260913214652_account_capabilities_and_public_listings.sql`.
+Implementation: `20260914171835_account_capabilities_and_public_listings.sql` (production-recorded version).
 This is a branch implementation, not a production cutover. Application-model
 writes remain fenced off. No application or offer can be created yet.
 
@@ -174,7 +233,7 @@ back; prefer a forward fix. Never delete new profiles or firms to force a rollba
 ## Phase 3 implementation: application → offer → acceptance
 
 Implemented on the migration branch, **not approved for production activation**.
-Migration: `20260914113527_application_offer_acceptance.sql`.
+Migration: `20260914171841_application_offer_acceptance.sql` (production-recorded version).
 
 ### Scope and architecture
 
@@ -287,11 +346,11 @@ follow-up work, not hidden functional promises.
 - Not verified: authenticated screen layouts/accessibility in real Supabase sessions,
   hosted PostgREST permissions, simultaneous requests, SMTP, and actual notification
   delivery. Supabase local lint/advisors could not connect to 127.0.0.1:54322.
-- The supplied project `deshfuafmxzdfvpobyyp` is production, not staging. No migration
-  or test fixtures were applied there. No merge to the production branch is included.
+- The initial local verification above preceded deployment. See the deployment
+  record at the top for current production status and remaining verification gaps.
 
-Production is blocked on isolated staging verification, counsel/commercial decisions,
-reliable offer notifications and controlled cutover. Additive schema rollback is not
+General public intake is blocked on authenticated pilot verification, counsel/commercial
+decisions, reliable offer notifications and controlled cutover. Additive schema rollback is not
 data deletion: retain application histories and use a reviewed forward fix.
 
 ## Decisions still required before public cutover

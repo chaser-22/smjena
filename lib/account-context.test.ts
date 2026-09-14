@@ -27,6 +27,9 @@ test('contact and posting context needs an explicit valid workspace', () => {
 });
 
 test('login returns only to known product destinations', () => {
+  assert.equal(safeReturnPath('/employer/billing'), '/employer/billing');
+  assert.equal(safeReturnPath(`/employer/billing?workspace=${first}`), `/employer/billing?workspace=${first}`);
+  for (const bad of ['/employer/billing?workspace=not-a-uuid', '/employer/billing?next=evil', `/employer/billing?workspace=${first}&workspace=${second}`]) assert.equal(safeReturnPath(bad), '/dashboard');
   for (const bad of ['//evil.test', '/\\evil.test', '/%2f%2fevil.test', 'https://evil.test', '/auth/callback', '/login', '/shifts?email=private', '/dashboard?next=evil', '/settings\n']) {
     assert.equal(safeReturnPath(bad), '/dashboard', bad);
   }

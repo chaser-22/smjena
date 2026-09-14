@@ -38,6 +38,10 @@ export function safeReturnPath(value: unknown): string {
   if (/^\/shifts(?:\/[0-9a-f-]{36})?$/.test(url.pathname) && !url.search) return url.pathname;
   if (url.pathname === '/settings' && !url.search) return '/settings';
   if (url.pathname === '/applications' && !url.search) return '/applications';
+  if (url.pathname === '/employer/billing'
+    && [...url.searchParams.keys()].every((key) => key === 'workspace')
+    && url.searchParams.getAll('workspace').length <= 1
+    && (!url.search || z.uuid().safeParse(url.searchParams.get('workspace')).success)) return url.pathname + url.search;
   if (/^\/employer\/shifts(?:\/[0-9a-f-]{36}\/applications)?$/.test(url.pathname)
     && [...url.searchParams.keys()].every((key) => key === 'workspace')) return url.pathname + url.search;
   if (url.pathname === '/dashboard' && [...url.searchParams.keys()].every((key) => ['mode', 'workspace', 'shift', 'source'].includes(key))) return url.pathname + url.search;

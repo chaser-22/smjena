@@ -123,7 +123,7 @@ test('settings requires login and callback failures preserve a safe destination'
 });
 
 test('application and employer routes require login and preserve their destination', async ({ page }) => {
-  for (const path of ['/applications', '/employer/shifts', '/employer/shifts/10000000-0000-4000-8000-000000000001/applications']) {
+  for (const path of ['/applications', '/employer/billing', '/employer/billing?workspace=10000000-0000-4000-8000-000000000001', '/employer/shifts', '/employer/shifts/10000000-0000-4000-8000-000000000001/applications']) {
     await page.goto(path);
     await expect(page.getByRole('heading', { name: 'Dobro došao nazad.' })).toBeVisible();
     expect(new URL(page.url()).searchParams.get('next')).toBe(path);

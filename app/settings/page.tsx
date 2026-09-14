@@ -36,6 +36,7 @@ export default async function SettingsPage() {
           <div><strong>{workspace.name}</strong><p className="text-sm">{workspace.memberRole === 'owner' ? 'Vlasnik naloga firme' : 'Menadžer'}</p></div>
           <Link href={dashboardHref({ role: 'employer', employerId: workspace.id })}>Otvori firmu →</Link>
           <Link href={`/employer/shifts?workspace=${workspace.id}`}>Oglasi i prijave →</Link>
+          {workspace.memberRole === 'owner' && <Link href={`/employer/billing?workspace=${workspace.id}`}>Objave i promocije →</Link>}
         </li>)}</ul> : <p>Još nijesi povezan/a sa firmom.</p>}
         <p className="text-sm">Kontakt i smjene svake firme su odvojeni. Za pristup postojećoj firmi obrati se njenom vlasniku; nemoj praviti duplikat.</p>
         <details className="mt-5"><summary className="min-h-11 cursor-pointer py-3 font-bold">Dodaj novu firmu</summary>

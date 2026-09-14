@@ -4,10 +4,11 @@ import { PGlite } from '@electric-sql/pglite';
 import { snapshotMarketplace, verifyModelBoundary } from './verify-model-boundary.mjs';
 import { verifyCapabilitiesAndProjection } from './verify-capabilities.mjs';
 import { verifyApplications } from './verify-applications.mjs';
+import { verifyBilling } from './verify-billing.mjs';
 
 const root = new URL('../', import.meta.url);
-const modelMigrationFile = 'supabase/migrations/20260913213702_isolate_marketplace_models.sql';
-const capabilitiesMigrationFile = 'supabase/migrations/20260913214652_account_capabilities_and_public_listings.sql';
+const modelMigrationFile = 'supabase/migrations/20260914171829_isolate_marketplace_models.sql';
+const capabilitiesMigrationFile = 'supabase/migrations/20260914171835_account_capabilities_and_public_listings.sql';
 const populatedUpgrade = process.argv.includes('--populated-upgrade');
 const preflightSql = await readFile(new URL('../supabase/checks/marketplace-model-preflight.sql', import.meta.url), 'utf8');
 const migrationFiles = [
@@ -338,8 +339,12 @@ await database.exec(preflightSql);
 await verifyModelBoundary(database, { employerId, employerUserId, workerOneId, workerTwoId, workerThreeId });
 await verifyCapabilitiesAndProjection(database, { employerId, employerUserId, workerOneId, workerTwoId });
 const beforeApplications = await snapshotMarketplace(database);
-await database.exec(await readFile(new URL('supabase/migrations/20260914113527_application_offer_acceptance.sql', root), 'utf8'));
+await database.exec(await readFile(new URL('supabase/migrations/20260914171841_application_offer_acceptance.sql', root), 'utf8'));
 assert.deepEqual(await snapshotMarketplace(database), beforeApplications, 'Phase 3 changed historical records.');
 await verifyApplications(database, { employerId, employerUserId, workerOneId, workerTwoId, workerThreeId });
+const beforeBilling = await snapshotMarketplace(database);
+await database.exec(await readFile(new URL('supabase/migrations/20260914173021_employer_billing_foundation.sql', root), 'utf8'));
+assert.deepEqual(await snapshotMarketplace(database), beforeBilling, 'Phase 4A changed historical records.');
+await verifyBilling(database, { employerId, employerUserId, workerOneId, workerTwoId });
 console.log('all migrations, legacy transitions and model boundaries validated');
 await database.close();

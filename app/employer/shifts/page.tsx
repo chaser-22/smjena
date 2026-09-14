@@ -28,6 +28,7 @@ export default async function EmployerShifts({ searchParams }: { searchParams: P
   if (posts.error || pilot.error || contact.error) throw new Error('Employer posts unavailable');
   return <MarketplaceShell><Link className={styles.secondary} href="/employer/shifts">← Promijeni firmu</Link><p className={styles.kicker}>{selected.name}</p><h1>Oglasi za smjene</h1>
     <p className={styles.intro}>Objavi uslove. Pregledaj prijave. Pošalji ponudu osobi koju izabereš. Dogovor je potvrđen u aplikaciji tek kada radnik prihvati.</p>
+    {selected.memberRole === 'owner' && <Link className={styles.secondary} href={`/employer/billing?workspace=${selected.id}`}>Objave i promocije — pregled kredita</Link>}
     <ApplicationPhoneForm key={selected.id} phone={contact.data?.phone ?? null} workspace={selected.id} />
     {pilot.data ? <details className={styles.panel}><summary className={styles.secondary}>Objavi novu smjenu</summary><PublishApplicationForm key={selected.id} workspace={selected.id} businessName={selected.name} requestId={randomUUID()} /><EmployerResponsibility /></details>
       : <aside className={styles.notice}><h2>Novi model je u pripremi</h2><p>Objavljivanje kroz prijave još nije omogućeno za ovu firmu. Uključivanje pilot-firme zahtijeva odobrenje; ovdje se ništa ne naplaćuje.</p></aside>}
