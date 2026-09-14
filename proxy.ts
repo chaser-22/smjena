@@ -24,15 +24,16 @@ export async function proxy(request: NextRequest) {
   );
 
   const { data } = await supabase.auth.getUser();
-  const isDashboard = request.nextUrl.pathname.startsWith('/dashboard');
-  const isLogin = request.nextUrl.pathname === '/login';
+  const isProtected = ['/dashboard', '/settings', '/applications', '/employer'].some(
+    (path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(`${path}/`),
+  );
 
-  if (isDashboard && !data.user) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  if (isLogin && data.user) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  if (isProtected && !data.user) {
+    const target = new URL('/login', request.url);
+    target.searchParams.set('next', request.nextUrl.pathname + request.nextUrl.search);
+    const redirected = NextResponse.redirect(target);
+    response.cookies.getAll().forEach((cookie) => redirected.cookies.set(cookie));
+    return redirected;
   }
 
   return response;

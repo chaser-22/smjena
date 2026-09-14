@@ -39,7 +39,7 @@
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  color: var(--white);
+  color: var(--white, #152033);
   font-size: 23px;
   font-weight: 950;
   letter-spacing: -1.4px;
@@ -49,13 +49,13 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  background: var(--red);
+  background: var(--red, #ba2630);
   color: white;
   border-radius: 50%;
 }
 .brand .brandPeriod {
   margin-left: -10px;
-  color: var(--red);
+  color: var(--red, #ba2630);
 }
 .header nav {
   display: flex;

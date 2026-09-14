@@ -37,7 +37,7 @@ export async function notifyAvailableWorkers(shift: ShiftNotification) {
       workerIds = (available ?? []).map((row) => row.user_id);
     }
   } else {
-    const { data: profiles } = await admin.from('profiles').select('id').eq('role', 'worker').eq('city', shift.city);
+    const { data: profiles } = await admin.from('profiles').select('id').eq('city', shift.city);
     const cityWorkerIds = (profiles ?? []).map((row) => row.id);
     if (cityWorkerIds.length) {
       const { data: available } = await admin.from('worker_profiles').select('user_id').in('user_id', cityWorkerIds).eq('available', true).eq('notifications_enabled', true);
@@ -60,10 +60,10 @@ export async function notifyAvailableWorkers(shift: ShiftNotification) {
   const start = new Intl.DateTimeFormat('sr-Latn-ME', { timeZone: 'Europe/Podgorica', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }).format(new Date(shift.startsAt));
   const payload = JSON.stringify({
     title: shift.audience === 'crew' ? 'Nova smjena za tvoju ekipu' : 'Nova SMJENA blizu tebe',
-    body: `${shift.role} · ${shift.area} · €${shift.payCents / 100} · ${start}`,
+    body: `${shift.role} · ${shift.city} · €${shift.payCents / 100} · ${start}`,
     icon: '/favicon.svg',
     badge: '/favicon.svg',
-    url: `/dashboard?shift=${shift.id}&source=push`,
+    url: `/dashboard?mode=worker&shift=${shift.id}&source=push`,
   });
 
   const results = await Promise.all(subscriptions.map(async (subscription) => {
@@ -126,7 +126,7 @@ export async function notifyShiftCancellation(input: {
     body: `${input.role} · ${start}. Otvori SMJENU za detalje.`,
     icon: '/favicon.svg',
     badge: '/favicon.svg',
-    url: `/dashboard?shift=${input.shiftId}&source=push`,
+    url: `/dashboard?mode=worker&shift=${input.shiftId}&source=push`,
   });
 
   const results = await Promise.all(subscriptions.map(async (subscription) => {

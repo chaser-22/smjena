@@ -7,6 +7,7 @@ import { PublicBrand } from '@/components/marketing/public-brand';
 import styles from '@/components/marketing/public.module.css';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
+import { safeReturnPath } from '@/lib/account-context';
 
 export const metadata: Metadata = {
   title: 'Prijava | SMJENA',
@@ -17,13 +18,14 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; intent?: string; role?: string }>;
+  searchParams: Promise<{ error?: string; intent?: string; role?: string; next?: string }>;
 }) {
   if (!isSupabaseConfigured()) return <MissingConfiguration />;
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (data.user) redirect('/dashboard');
   const params = await searchParams;
+  const next = safeReturnPath(params.next);
+  if (data.user) redirect(next);
   const intent =
     params.intent === 'register' && !params.error ? 'register' : 'login';
   const role = params.role === 'employer' ? 'employer' : 'worker';
@@ -71,6 +73,7 @@ export default async function LoginPage({
             key={`${intent}-${role}`}
             initialIntent={intent}
             initialRole={role}
+            next={next}
           />
         </section>
       </main>

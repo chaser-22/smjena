@@ -2,9 +2,11 @@ import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { snapshotMarketplace, verifyModelBoundary } from './verify-model-boundary.mjs';
+import { verifyCapabilitiesAndProjection } from './verify-capabilities.mjs';
 
 const root = new URL('../', import.meta.url);
 const modelMigrationFile = 'supabase/migrations/20260913213702_isolate_marketplace_models.sql';
+const capabilitiesMigrationFile = 'supabase/migrations/20260913214652_account_capabilities_and_public_listings.sql';
 const populatedUpgrade = process.argv.includes('--populated-upgrade');
 const preflightSql = await readFile(new URL('../supabase/checks/marketplace-model-preflight.sql', import.meta.url), 'utf8');
 const migrationFiles = [
@@ -16,7 +18,7 @@ const migrationFiles = [
   'supabase/migrations/20260906170318_add_foreign_key_indexes.sql',
   'supabase/migrations/20260906170718_block_expired_assignment_cancellation.sql',
   'supabase/migrations/20260907171142_add_assignment_contacts.sql',
-  ...(!populatedUpgrade ? [modelMigrationFile] : []),
+  ...(!populatedUpgrade ? [modelMigrationFile, capabilitiesMigrationFile] : []),
 ];
 
 const database = new PGlite();
@@ -326,11 +328,13 @@ if (populatedUpgrade) {
   await database.exec(preflightSql);
   const before = await snapshotMarketplace(database);
   await database.exec(await readFile(new URL(modelMigrationFile, root), 'utf8'));
+  await database.exec(await readFile(new URL(capabilitiesMigrationFile, root), 'utf8'));
   assert.deepEqual(await snapshotMarketplace(database), before, 'Upgrade changed historical marketplace records.');
   console.log('populated upgrade preserved all historical marketplace records');
 }
 
 await database.exec(preflightSql);
 await verifyModelBoundary(database, { employerId, employerUserId, workerOneId, workerTwoId, workerThreeId });
+await verifyCapabilitiesAndProjection(database, { employerId, employerUserId, workerOneId, workerTwoId });
 console.log('all migrations, legacy transitions and model boundaries validated');
 await database.close();

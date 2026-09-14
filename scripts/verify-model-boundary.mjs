@@ -25,7 +25,7 @@ export async function snapshotMarketplace(database) {
     ]) {
       const result = await database.query(`
       select coalesce(jsonb_agg(record order by record::text), '[]'::jsonb) as records
-      from (select to_jsonb(row) - 'marketplace_model' as record from public.${table} row) data
+      from (select to_jsonb(row) - 'marketplace_model' - 'onboarding_request_id' as record from public.${table} row) data
     `);
       snapshot[table] = result.rows[0].records;
     }

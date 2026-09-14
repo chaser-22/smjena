@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { recordProductEvent } from '@/lib/product-events';
 import { normalizeMontenegroPhone, type NewShiftInput } from '@/lib/smjena';
 import { notifyAvailableWorkers, notifyShiftCancellation } from '@/lib/notifications';
+import { DashboardContextSchema, type DashboardContext } from '@/lib/account-context';
 
 export type ActionResult = { ok: true; amount?: number; count?: number } | { ok: false; error: string };
 
@@ -24,7 +25,9 @@ const ShiftSchema = z.object({
   crewFirst: z.boolean(),
 });
 
-export async function updateContactAction(phone: string): Promise<ActionResult> {
+export async function updateContactAction(phone: string, target: DashboardContext): Promise<ActionResult> {
+  const selection = DashboardContextSchema.safeParse(target);
+  if (!selection.success) return failure('Izaberi radnički profil ili firmu u podešavanjima.');
   const parsed = z.string().trim().min(6).max(40).safeParse(phone);
   const normalized = parsed.success ? normalizeMontenegroPhone(parsed.data) : null;
   if (!normalized) return failure('Unesi važeći broj iz Crne Gore, na primjer 067 123 456.');
@@ -32,22 +35,15 @@ export async function updateContactAction(phone: string): Promise<ActionResult> 
   const supabase = await createClient();
   const { data, error: userError } = await supabase.auth.getUser();
   if (userError || !data.user) return failure('Prijava je istekla. Prijavi se ponovo.');
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', data.user.id)
-    .single();
-  if (profileError || !profile) return failure('Profil nije pronađen.');
-
-  if (profile.role === 'worker') {
+  if (selection.data.role === 'worker') {
     const { error } = await saveContact(supabase, 'worker_contacts', 'user_id', data.user.id, normalized);
     if (error) return databaseFailure(error.message);
-  } else if (profile.role === 'employer') {
+  } else if (selection.data.role === 'employer') {
     const { data: membership, error: membershipError } = await supabase
       .from('employer_members')
       .select('employer_id')
       .eq('user_id', data.user.id)
-      .limit(1)
+      .eq('employer_id', selection.data.employerId)
       .single();
     if (membershipError || !membership) return failure('Nalog nije povezan sa poslodavcem.');
     const { error } = await saveContact(supabase, 'employer_contacts', 'employer_id', membership.employer_id, normalized);
@@ -159,7 +155,8 @@ export async function setNotificationsAction(enabled: boolean, subscription?: Pu
   return { ok: true };
 }
 
-export async function postShiftAction(input: NewShiftInput): Promise<ActionResult> {
+export async function postShiftAction(input: NewShiftInput, employerId: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(employerId).success) return failure('Izaberi firmu prije objave.');
   const parsed = ShiftSchema.safeParse(input);
   if (!parsed.success) return failure('Podaci smjene nijesu ispravni.');
   const context = await requireRole('employer');
@@ -169,7 +166,7 @@ export async function postShiftAction(input: NewShiftInput): Promise<ActionResul
     .from('employer_members')
     .select('employer_id')
     .eq('user_id', context.userId)
-    .limit(1)
+    .eq('employer_id', employerId)
     .single();
   if (membershipError || !membership) return failure('Nalog nije povezan sa poslodavcem.');
 
@@ -368,8 +365,10 @@ async function requireRole(expectedRole: 'worker' | 'employer') {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return failure('Prijava je istekla. Prijavi se ponovo.');
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
-  if (!profile || profile.role !== expectedRole) return failure('Nemaš dozvolu za ovu akciju.');
+  const capability = expectedRole === 'worker'
+    ? await supabase.from('worker_profiles').select('user_id').eq('user_id', data.user.id)
+    : await supabase.from('employer_members').select('employer_id').eq('user_id', data.user.id);
+  if (capability.error || !capability.data?.length) return failure('Nemaš dozvolu za ovu akciju.');
   return { ok: true as const, supabase, userId: data.user.id };
 }
 

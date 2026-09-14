@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Bell, BriefcaseBusiness, Clock3, LogOut, MapPin, PhoneCall, ShieldCheck, Users, WalletCards, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -74,7 +75,7 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
     }));
   };
 
-  const postShift = (input: NewShiftInput) => run(() => postShiftAction(input), 'Smjena je objavljena');
+  const postShift = (input: NewShiftInput) => run(() => postShiftAction(input, data.employerId ?? ''), 'Smjena je objavljena');
 
   return (
     <Toaster>
@@ -88,6 +89,7 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
               <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[.08em] text-emerald-700"><span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" /> Produkcijska mreža</span>
             </div>
             <div className="flex items-center gap-2">
+              <Link href="/settings" className="inline-flex min-h-11 items-center px-2 text-xs font-bold">Nalog / firma</Link>
               <Button onClick={() => setNotificationsOpen(true)} variant="ghost" size="icon" className="relative size-11 rounded-full" aria-label="Aktivnost naloga"><Bell /></Button>
               <form action={logoutAction}><Button type="submit" variant="ghost" size="icon" className="size-11 rounded-full" aria-label="Odjavi se"><LogOut /></Button></form>
               <button type="button" onClick={() => setContactOpen(true)} className="grid size-11 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff5b35]" aria-label="Otvori kontakt podatke"><span className="grid size-9 place-items-center rounded-full bg-[#101d34] text-xs font-extrabold text-white">{role === 'worker' ? state.worker.initials : data.profileName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')}</span></button>
@@ -173,7 +175,7 @@ export function SmjenaApp({ data }: { data: DashboardData }) {
             setContactError(null);
             const saved = await run(async () => {
               try {
-                const result = await updateContactAction(phone);
+                const result = await updateContactAction(phone, role === 'worker' ? { role: 'worker' } : { role: 'employer', employerId: data.employerId ?? '' });
                 if (!result.ok) setContactError(result.error);
                 return result;
               } catch {

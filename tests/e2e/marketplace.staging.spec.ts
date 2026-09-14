@@ -178,6 +178,37 @@ test.describe('staging worker–employer acceptance journey', () => {
       await expect(
         employerPage.locator('a[href="tel:+38267911002"]'),
       ).toHaveCount(0);
+
+      // Phase 2: the same email can use both capabilities without losing its firm.
+      await employerPage.goto('/settings');
+      await employerPage.getByRole('button', { name: 'Dodaj radnički profil' }).click();
+      await expect(employerPage.getByRole('link', { name: /Otvori (radnički )?profil/ }).first()).toBeVisible();
+      await employerPage.goto('/dashboard');
+      await expect(employerPage).toHaveURL(/\/settings$/);
+      await employerPage.getByRole('link', { name: 'Otvori radnički profil' }).click();
+      await expect(employerPage.getByText('Radnički nalog', { exact: true })).toBeVisible();
+      await employerPage.goto(`/dashboard?mode=employer&workspace=${ids.employerId}`);
+      await expect(employerPage.getByText('Poslodavac', { exact: true })).toBeVisible();
+
+      // Explicit workspace selection and separate phone storage for one owner.
+      for (const label of ['Prva', 'Druga']) {
+        await workerPage.goto('/settings');
+        await workerPage.getByText('Dodaj novu firmu', { exact: true }).click();
+        await workerPage.getByLabel('Naziv firme ili lokala').fill(`E2E ${label} ${suffix}`);
+        await workerPage.getByRole('button', { name: 'Dodaj firmu', exact: true }).click();
+        await expect(workerPage.getByText('Firma je dodata na tvoj nalog.')).toBeVisible();
+      }
+      const { data: firms, error: firmsError } = await admin.from('employers').select('id, name').eq('owner_id', ids.workerUserId);
+      assertNoError(firmsError, 'read worker-owned test firms');
+      expect(firms).toHaveLength(2);
+      const secondFirm = firms!.find((firm) => firm.name.startsWith('E2E Druga'))!;
+      await workerPage.goto(`/dashboard?mode=employer&workspace=${secondFirm.id}`);
+      await addContactPhone(workerPage, '067 911 003');
+      const { data: personalContact, error: phoneError } = await admin.from('worker_contacts').select('phone').eq('user_id', ids.workerUserId).single();
+      assertNoError(phoneError, 'verify personal contact remains separate');
+      expect(personalContact?.phone).toBe('+38267911002');
+      await workerPage.goto(`/dashboard?mode=employer&workspace=${ids.employerId}`);
+      await expect(workerPage).toHaveURL(/\/settings$/);
     } finally {
       await workerContext?.close();
       await employerContext?.close();
@@ -390,6 +421,8 @@ async function cleanupFixtures(admin: SupabaseClient, ids: FixtureIds) {
     );
   }
   if (ids.workerUserId) {
+    // Only workspaces owned by this run's isolated fixture account.
+    assertNoError((await admin.from('employers').delete().eq('owner_id', ids.workerUserId)).error, 'delete worker-owned test firms');
     assertNoError(
       (await admin.auth.admin.deleteUser(ids.workerUserId)).error,
       'delete worker fixture user',

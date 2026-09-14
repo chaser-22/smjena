@@ -10,9 +10,7 @@ export function LandingPage() {
       <header className={styles.header}>
         <PublicBrand />
         <nav aria-label="Glavna navigacija">
-          <a href="#kako-radi" className={styles.navAbout}>
-            Kako radi
-          </a>
+          <Link href="/shifts" className={styles.navAbout}>Oglasi</Link>
           <Link href="/login">
             Prijavi se <ArrowUpRight size={17} aria-hidden="true" />
           </Link>

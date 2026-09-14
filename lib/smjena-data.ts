@@ -3,6 +3,7 @@ import 'server-only';
 import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import type { EmployerProfile, Shift, ShiftStatus, SmjenaState, WorkerProfile } from '@/lib/smjena';
+import type { DashboardContext } from '@/lib/account-context';
 
 type Row = Record<string, unknown>;
 
@@ -15,7 +16,7 @@ export type DashboardData = {
   state: SmjenaState;
 };
 
-export async function getDashboardData(user: User): Promise<DashboardData> {
+export async function getDashboardData(user: User, context: DashboardContext): Promise<DashboardData> {
   const supabase = await createClient();
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -25,8 +26,8 @@ export async function getDashboardData(user: User): Promise<DashboardData> {
 
   if (profileError || !profile) throw new Error('Profil nije pronađen.');
 
-  return profile.role === 'employer'
-    ? getEmployerDashboard(user.id, profile as Row)
+  return context.role === 'employer'
+    ? getEmployerDashboard(user.id, profile as Row, context.employerId)
     : getWorkerDashboard(user.id, profile as Row);
 }
 
@@ -141,17 +142,16 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   };
 }
 
-async function getEmployerDashboard(userId: string, profile: Row): Promise<DashboardData> {
+async function getEmployerDashboard(userId: string, profile: Row, employerId: string): Promise<DashboardData> {
   const supabase = await createClient();
   const { data: membership, error: membershipError } = await supabase
     .from('employer_members')
     .select('employer_id')
     .eq('user_id', userId)
-    .limit(1)
+    .eq('employer_id', employerId)
     .single();
   if (membershipError || !membership) throw new Error('Poslodavac nije povezan sa nalogom.');
 
-  const employerId = String(membership.employer_id);
   const [employerResult, shiftResult, trustedResult, ledgerResult, ownContactResult] = await Promise.all([
     supabase.from('employers').select('*').eq('id', employerId).single(),
     supabase.from('shifts').select('*').eq('employer_id', employerId).order('starts_at', { ascending: false }).limit(100),

@@ -20,9 +20,11 @@ const initialState: LoginState = { status: 'idle' };
 export function LoginForm({
   initialIntent = 'login',
   initialRole = 'worker',
+  next = '/dashboard',
 }: {
   initialIntent?: 'login' | 'register';
   initialRole?: 'worker' | 'employer';
+  next?: string;
 }) {
   const [intent, setIntent] = useState<'login' | 'register'>(initialIntent);
   const [version, setVersion] = useState(0);
@@ -86,6 +88,7 @@ export function LoginForm({
           key={`${intent}-${version}`}
           intent={intent}
           initialRole={initialRole}
+          next={next}
           onReset={() => setVersion((value) => value + 1)}
         />
       </div>
@@ -96,10 +99,12 @@ export function LoginForm({
 function AuthForm({
   intent,
   initialRole,
+  next,
   onReset,
 }: {
   intent: 'login' | 'register';
   initialRole: 'worker' | 'employer';
+  next: string;
   onReset: () => void;
 }) {
   const [role, setRole] = useState<'worker' | 'employer'>(initialRole);
@@ -112,6 +117,7 @@ function AuthForm({
   const [state, action, pending] = useActionState(
     async (previous: LoginState, data: FormData): Promise<LoginState> => {
       try {
+        data.set('next', next);
         return await requestMagicLink(previous, data);
       } catch {
         return {
@@ -188,8 +194,8 @@ function AuthForm({
               ))}
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              Uloga se trajno veže za ovaj email. Za drugu ulogu koristi drugi
-              email.
+              Jedan email je dovoljan. Kasnije možeš dodati radnički profil ili
+              firmu u podešavanjima.
             </p>
           </fieldset>
 

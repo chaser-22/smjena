@@ -10,6 +10,8 @@ test.describe('public entry and authentication states', () => {
       '/',
       '/login',
       '/login?intent=register&role=employer',
+      '/shifts',
+      '/shifts/not-a-real-id',
     ]) {
       await page.goto(path);
       const results = await new AxeBuilder({ page })
@@ -46,7 +48,7 @@ test.describe('public entry and authentication states', () => {
       page.getByRole('group', { name: 'Otvaram nalog kao' }),
     ).toBeVisible();
     await expect(
-      page.getByText('Uloga se trajno veže za ovaj email.'),
+      page.getByText('Jedan email je dovoljan.', { exact: false }),
     ).toBeVisible();
     await expect(page.getByLabel('Ime i prezime')).toBeVisible();
     await expect(page.getByLabel('Grad').locator('option')).toHaveCount(24);
@@ -78,7 +80,7 @@ test.describe('public entry and authentication states', () => {
   test('logged-out dashboard visits return to login', async ({ page }) => {
     await page.goto('/dashboard');
 
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(?:\?next=.*)?$/);
     await expect(page.getByRole('tab', { name: 'Imam nalog' })).toBeVisible();
   });
 
@@ -94,6 +96,30 @@ test.describe('public entry and authentication states', () => {
     );
     expect(overflow).toBeLessThanOrEqual(1);
   });
+});
+
+test('public shift browsing is anonymous, responsive and does not claim availability', async ({ page }) => {
+  await page.goto('/shifts');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('sljedeću smjenu');
+  await expect(page.getByRole('link', { name: 'SMJENA — početna' }).locator('span').first()).toHaveCSS('background-color', 'rgb(186, 38, 48)');
+  await expect(page.getByLabel('Grad')).toBeVisible();
+  await page.getByLabel('Grad').selectOption('Kotor');
+  await page.getByRole('button', { name: 'Prikaži smjene' }).click();
+  await expect(page).toHaveURL(/\/shifts\?city=Kotor$/);
+  await expect(page.locator('a[href^="tel:"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Uzmi|Prijavi se/i })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+  await page.goto('/shifts/not-a-real-id');
+  await expect(page.getByRole('heading', { name: 'Oglas nije dostupan.' })).toBeVisible();
+});
+
+test('settings requires login and callback failures preserve a safe destination', async ({ page }) => {
+  await page.goto('/settings');
+  await expect(page).toHaveURL(/\/login\?next=(?:%2F|\/)settings$/);
+  await page.goto('/auth/callback?next=/shifts');
+  await expect(page).toHaveURL(/\/login\?error=auth_callback&next=%2Fshifts$/);
+  await page.goto('/auth/callback?next=//evil.example');
+  await expect(page).toHaveURL(/\/login\?error=auth_callback$/);
 });
 
 test('homepage role entrances carry the choice into registration', async ({

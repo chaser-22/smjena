@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { parseAuthSubmission } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { safeReturnPath } from '@/lib/account-context';
 
 export type LoginState = {
   status: 'idle' | 'success' | 'error';
@@ -50,7 +51,7 @@ export async function requestMagicLink(
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safeReturnPath(formData.get('next')))}`,
       shouldCreateUser: Boolean(registration),
       ...(registration ? {
         data: {

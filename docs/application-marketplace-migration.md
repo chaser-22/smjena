@@ -80,10 +80,89 @@ with the added column, so an application rollback can leave the migration intact
 If a guard causes a regression, investigate and use a reviewed forward fix; do
 not bulk-convert rows or delete historical ledger records.
 
+## Phase 2: account capabilities and safe public browsing
+
+Implementation: `20260913214652_account_capabilities_and_public_listings.sql`.
+This is a branch implementation, not a production cutover. Application-model
+writes remain fenced off. No application or offer can be created yet.
+
+### Account and route changes
+
+- `/settings` lists the authenticated user's worker capability and every employer
+  workspace. Users can enable their own worker profile or create a workspace;
+  existing roles, memberships and historical data are not rewritten.
+- `/dashboard?mode=worker` and `/dashboard?mode=employer&workspace=<uuid>` select
+  explicit contexts. Only an unambiguous old link resolves automatically; dual
+  capability and multi-workspace accounts choose from settings. Membership is
+  rechecked server-side and by RLS; URL parameters never grant access.
+- Phone saving and shift publishing target the selected workspace, not the first
+  membership. Personal and business phones remain separate. New worker push
+  links explicitly select the worker context. Previously delivered ambiguous
+  notification links may still require choosing the worker profile in settings.
+- Worker capability creation and workspace creation are transactional and
+  idempotent. A stable per-form request ID prevents duplicate firms on retries.
+  Workspace creation has an abuse ceiling of five owned firms per 24 hours;
+  this is not a pricing tier, billing entitlement or business verification.
+- Login/callback preserve allowlisted internal destinations. New-account copy
+  explains that an email is not permanently restricted to one role.
+
+### Data and privacy boundaries
+
+- `shift_locations` separates exact addresses. The only backfill copies legacy
+  addresses privately and retains `shifts.area` for compatibility; it is not a
+  claim that legacy authenticated feeds have been retroactively made private.
+  Members can read their firm's locations. Legacy workers can read the new
+  table only for their specific active claimed/checked-in assignment, not every
+  shift of the same employer. Cancellation revokes that entitlement.
+- `public_shift_listings` starts empty. No legacy role, company name, address or
+  requirements free text is automatically republished. Anonymous clients can
+  select only this curated projection, never base shifts, contacts or applicants.
+  Source changes, cancellation, crew-only visibility and elapsed starts invalidate
+  a projection immediately through RLS. New-model raw shifts are restricted to
+  workspace members even for authenticated legacy-feed readers.
+- `/shifts` and `/shifts/[id]` use an anonymous server-side client with an explicit
+  field allowlist. They display offered compensation and advertised capacity,
+  not earnings, payments or invented remaining places. Empty, unavailable and
+  missing-listing states are distinct. Application intake is explicitly unavailable.
+- Phase 3 must implement transactional publication of curated public fields,
+  source-version refresh, public-copy privacy checks, accepted-contact rules and
+  the complete application/offer/acceptance lifecycle before lifting the fence.
+  `approved_at` is publication approval, not verified business/attendance/payment.
+
+### Verification and deployment gate
+
+Local checks on 2026-09-14: 19 unit/safety tests, 26 desktop/mobile public browser
+checks (including automated WCAG A/AA scans), clean-install and populated-upgrade
+PGlite suites, lint, production build/strict TypeScript and dependency audit passed
+(zero reported vulnerabilities). The public shifts unavailable layout was visually
+inspected on desktop and phone. All database fixtures were disposable and local.
+Browser checks used local-only dummy Supabase configuration: they cover the public
+UI, anonymous auth guards and connection failure, not hosted Supabase integration.
+
+The staging acceptance spec now covers adding worker capability to an employer,
+creating two workspaces as a worker, explicit workspace navigation, distinct contact
+storage and unauthorized workspace rejection. **It has not been run against staging.**
+Real magic-link delivery, authenticated dashboards over PostgREST, populated public
+listing rendering, concurrent PostgreSQL requests and push delivery remain staging
+gates. Local Supabase lint/advisors remain unavailable without the local PostgreSQL
+service; PGlite does not substitute for them.
+
+Apply Phases 1 and 2 in order to an isolated staging database before deploying this
+branch there. Reuse the drift inventory/backup gates above, run Supabase database
+lint/advisors, then `npm run test:e2e:staging` using the documented staging guard
+configuration. Confirm Supabase accepts magic-link callback URLs with the `next`
+query parameter. Confirm Data API privileges and anonymous projection filtering
+through real HTTP requests, not only SQL. Do not enable fake production listings
+to make the public page look populated. No production schema change or merge to
+the production branch is included in Phase 2.
+
+Application rollback can leave the additive schema intact, but the old UI cannot
+reliably represent accounts which have gained multiple capabilities/workspaces.
+Disable new capability onboarding and assess those accounts before rolling the app
+back; prefer a forward fix. Never delete new profiles or firms to force a rollback.
+
 ## Remaining phases
 
-2. Independent worker/workspace capabilities, explicit workspace authorization,
-   private exact locations and an allowlisted public listing projection.
 3. Complete staging journey: publish → apply → employer offer → worker acceptance
    → reciprocal contact. Include all rejection/withdrawal/expiry/cancellation paths.
 4. Workspace posting entitlements, separate timed SOS, invitations, notification
