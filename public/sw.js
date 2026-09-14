@@ -1,5 +1,7 @@
-const CACHE = "smjena-shell-v1";
-const SHELL = ["/", "/offline", "/favicon.svg"];
+const CACHE = "smjena-shell-v2";
+// The home route can redirect signed-in users to private account content.
+// Never precache it, application pages, or authenticated responses.
+const SHELL = ["/offline", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

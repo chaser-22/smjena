@@ -122,6 +122,16 @@ test('settings requires login and callback failures preserve a safe destination'
   await expect(page).toHaveURL(/\/login\?error=auth_callback$/);
 });
 
+test('application and employer routes require login and preserve their destination', async ({ page }) => {
+  for (const path of ['/applications', '/employer/shifts', '/employer/shifts/10000000-0000-4000-8000-000000000001/applications']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Dobro došao nazad.' })).toBeVisible();
+    expect(new URL(page.url()).searchParams.get('next')).toBe(path);
+    await page.goto(`/auth/callback?next=${encodeURIComponent(path)}`);
+    expect(new URL(page.url()).searchParams.get('next')).toBe(path);
+  }
+});
+
 test('homepage role entrances carry the choice into registration', async ({
   page,
 }) => {

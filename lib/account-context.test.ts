@@ -30,5 +30,5 @@ test('login returns only to known product destinations', () => {
   for (const bad of ['//evil.test', '/\\evil.test', '/%2f%2fevil.test', 'https://evil.test', '/auth/callback', '/login', '/shifts?email=private', '/dashboard?next=evil', '/settings\n']) {
     assert.equal(safeReturnPath(bad), '/dashboard', bad);
   }
-  for (const good of ['/shifts', `/shifts/${first}`, '/settings', `/dashboard?mode=employer&workspace=${second}`]) assert.equal(safeReturnPath(good), good);
+  for (const good of ['/shifts', `/shifts/${first}`, '/settings', '/applications', '/employer/shifts', `/employer/shifts?workspace=${first}`, `/employer/shifts/${first}/applications`, `/dashboard?mode=employer&workspace=${second}`]) assert.equal(safeReturnPath(good), good);
 });

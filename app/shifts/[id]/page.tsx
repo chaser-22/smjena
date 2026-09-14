@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { MarketplaceShell } from '@/components/marketplace/shell';
 import styles from '@/components/marketplace/marketplace.module.css';
 import { getPublicShifts, publicShiftTime } from '@/lib/public-shifts';
+import { ApplicationEntry } from '@/components/marketplace/application-entry';
+import { EmployerResponsibility } from '@/components/marketplace/responsibility';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Detalji smjene | SMJENA' };
@@ -21,6 +23,8 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       <dl className={styles.detail}><div><dt>Početak</dt><dd>{publicShiftTime(shift.starts_at)}</dd></div><div><dt>Kraj</dt><dd>{publicShiftTime(shift.ends_at)}</dd></div><div><dt>Dio grada</dt><dd>{shift.location_area}, {shift.city}</dd></div><div><dt>Broj mjesta u oglasu</dt><dd>{shift.workers_needed}</dd></div></dl>
       <h2>Uslovi</h2>{shift.requirements.length ? <ul className="list-disc space-y-2 pl-5">{shift.requirements.map((item, i) => <li key={i}>{item}</li>)}</ul> : <p>Poslodavac nije naveo dodatne uslove.</p>}
     </div>
-    <aside className={styles.notice}><h2>Prijave još nijesu otvorene</h2><p>Javni pregled je pripremljen. Prijavljivanje će biti dostupno kada poslodavac bude mogao da pregleda prijave i pošalje ponudu, a radnik da je prihvati ili odbije.</p><p className="mt-3">Pregled oglasa ne rezerviše mjesto. Privatni kontakt nije dostupan prije prihvatanja ponude.</p></aside>
+    <aside className={styles.notice}><h2>Prijavi se bez CV-a</h2><p>Prijava je besplatna i ne rezerviše mjesto. Poslodavac bira kome šalje ponudu. Kontakt se otkriva tek kada prihvatiš ponudu.</p>
+      <ApplicationEntry shiftId={id} />
+    </aside><EmployerResponsibility />
   </MarketplaceShell>;
 }

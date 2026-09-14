@@ -217,6 +217,97 @@ test.describe('staging worker–employer acceptance journey', () => {
   });
 });
 
+test('application offer and worker acceptance reveal contacts only after acceptance', async ({ browser }, testInfo) => {
+  test.setTimeout(120_000);
+  const config = requireStagingTestConfig();
+  const workspace = process.env.E2E_APPLICATION_WORKSPACE_ID;
+  if (!workspace || !/^[0-9a-f-]{36}$/.test(workspace)) throw new Error('Set E2E_APPLICATION_WORKSPACE_ID to an explicitly enabled isolated staging workspace.');
+  const admin = createStagingAdmin(config);
+  const { data: business, error } = await admin.from('employers').select('owner_id,name').eq('id', workspace).single();
+  assertNoError(error, 'read the approved staging workspace');
+  if (!business?.name.startsWith('E2E ')) throw new Error('The approved staging workspace name must start with E2E.');
+  const owner = await admin.auth.admin.getUserById(business!.owner_id);
+  assertNoError(owner.error, 'read staging workspace owner');
+  const email = owner.data.user?.email;
+  if (!email) throw new Error('Staging workspace owner must have an email.');
+  // Generates a staging-only login token without sending any email.
+  const magic = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+  assertNoError(magic.error, 'create staging-only owner session');
+  const employerContext = await authenticatedContext(browser, config, email, '', magic.data.properties.hashed_token);
+  const suffix = `${Date.now()}-${process.pid}`;
+  const workerEmail = `e2e-application-${suffix}@smjena.test`;
+  const password = `E2E-${crypto.randomUUID()}!`;
+  const workerId = await createFixtureUser(admin, { email: workerEmail, password, role: 'worker', fullName: 'E2E Pilot Radnik', city: 'Budva' });
+  const workerContext = await authenticatedContext(browser, config, workerEmail, password);
+  let shiftId: string | undefined;
+  try {
+    const employerPage = await employerContext.newPage();
+    const workerPage = await workerContext.newPage();
+    await employerPage.goto(`/employer/shifts?workspace=${workspace}`);
+    const addPhone = employerPage.getByText('Dodaj privatni kontakt telefon', { exact: true });
+    if (await addPhone.isVisible()) {
+      await addPhone.click();
+      await employerPage.getByLabel('Kontakt telefon', { exact: true }).fill('067 911 005');
+      await employerPage.getByRole('button', { name: 'Sačuvaj kontakt', exact: true }).click();
+      await expect(employerPage.getByText('Kontakt je sačuvan. Nije javan.')).toBeVisible();
+    }
+    await employerPage.getByText('Objavi novu smjenu', { exact: true }).click();
+    await employerPage.getByLabel('Javni naziv lokala').fill('E2E Pilot Hotel');
+    await employerPage.getByLabel('Početak — vrijeme u Crnoj Gori').fill(`${futureDate(14)}T12:00`);
+    await employerPage.getByLabel('Završetak — vrijeme u Crnoj Gori').fill(`${futureDate(14)}T18:00`);
+    await employerPage.getByLabel('Privatna tačna adresa').fill('E2E privatna adresa');
+    await employerPage.getByRole('checkbox', { name: /Potvrđujem javni naziv/ }).check();
+    await employerPage.getByRole('button', { name: 'Objavi oglas za smjenu' }).click();
+    await employerPage.getByRole('link', { name: 'Nastavi →' }).click();
+    await expect(employerPage).toHaveURL(/\/employer\/shifts\/[0-9a-f-]+\/applications$/);
+    shiftId = new URL(employerPage.url()).pathname.split('/')[3];
+    await workerPage.goto(`/shifts/${shiftId}`);
+    await expect(workerPage.getByText('E2E privatna adresa')).toHaveCount(0);
+    await workerPage.getByRole('button', { name: 'Pošalji prijavu' }).click();
+    await workerPage.getByRole('link', { name: /Otvori moju prijavu|Nastavi →/ }).first().click();
+    await expect(workerPage.getByText('Prijava poslata', { exact: true })).toBeVisible();
+    await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(0);
+    await workerPage.getByText('Dodaj privatni kontakt telefon', { exact: true }).click();
+    await workerPage.getByLabel('Kontakt telefon', { exact: true }).fill('067 911 004');
+    await workerPage.getByRole('button', { name: 'Sačuvaj kontakt', exact: true }).click();
+    await expect(workerPage.getByText('Kontakt je sačuvan. Nije javan.')).toBeVisible();
+    await employerPage.reload();
+    const applicant = employerPage.getByRole('article').filter({ hasText: 'E2E Pilot Radnik' });
+    await applicant.getByRole('button', { name: 'Pošalji ponudu' }).click();
+    await expect(employerPage.locator('a[href^="tel:"]')).toHaveCount(0);
+    await workerPage.reload();
+    await expect(workerPage.getByText('Ponuda čeka odgovor', { exact: true })).toBeVisible();
+    await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(0);
+    await workerPage.getByRole('checkbox', { name: /Pročitao\/la sam termin/ }).check();
+    await workerPage.getByRole('button', { name: 'Prihvati ponudu', exact: true }).click();
+    await expect(workerPage.getByText('E2E privatna adresa', { exact: true })).toBeVisible();
+    await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(1);
+    await employerPage.reload();
+    await expect(employerPage.locator('a[href="tel:+38267911004"]')).toBeVisible();
+    const legacy = await admin.from('shift_assignments').select('id', { count: 'exact', head: true }).eq('shift_id', shiftId);
+    assertNoError(legacy.error, 'verify no instant assignment was created');
+    expect(legacy.count).toBe(0);
+    await workerPage.getByText('Povuci prihvatanje', { exact: true }).click();
+    await workerPage.getByRole('checkbox', { name: /Razumijem da gubim/ }).check();
+    await workerPage.getByRole('button', { name: 'Potvrdi povlačenje' }).click();
+    await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(0);
+    await employerPage.reload();
+    await expect(employerPage.locator('a[href^="tel:"]')).toHaveCount(0);
+    await employerPage.getByText('Otkaži cijeli oglas', { exact: true }).click();
+    await employerPage.getByRole('checkbox', { name: /Otkazujem oglas/ }).check();
+    await employerPage.getByRole('button', { name: 'Otkaži oglas i sve aktivne prijave' }).click();
+    await expect(employerPage.getByText('Oglas je otkazan.', { exact: true })).toBeVisible();
+    await workerPage.goto(`/shifts/${shiftId}`);
+    await expect(workerPage.getByRole('heading', { name: 'Oglas nije dostupan.' })).toBeVisible();
+  } finally {
+    await employerContext.close();
+    await workerContext.close();
+    // Immutable test history is retained in the isolated staging project only.
+    // Do not add a privileged production cleanup endpoint to erase it.
+    await testInfo.attach('retained-staging-fixture', { body: JSON.stringify({ workspace, shiftId, workerId }), contentType: 'application/json' });
+  }
+});
+
 async function createFixtureUser(
   admin: SupabaseClient,
   input: {
@@ -250,6 +341,7 @@ async function authenticatedContext(
   config: StagingTestConfig,
   email: string,
   password: string,
+  magicTokenHash?: string,
 ) {
   const cookieJar = new Map<string, BrowserCookie>();
   const client = createServerClient(config.supabaseURL, config.publishableKey, {
@@ -269,7 +361,9 @@ async function authenticatedContext(
       },
     },
   });
-  const { error } = await client.auth.signInWithPassword({ email, password });
+  const { error } = magicTokenHash
+    ? await client.auth.verifyOtp({ token_hash: magicTokenHash, type: 'email' })
+    : await client.auth.signInWithPassword({ email, password });
   assertNoError(error, `authenticate ${email}`);
 
   const context = await browser.newContext();

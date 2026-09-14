@@ -37,6 +37,9 @@ export function safeReturnPath(value: unknown): string {
   if (url.origin !== 'https://smjena.invalid') return '/dashboard';
   if (/^\/shifts(?:\/[0-9a-f-]{36})?$/.test(url.pathname) && !url.search) return url.pathname;
   if (url.pathname === '/settings' && !url.search) return '/settings';
+  if (url.pathname === '/applications' && !url.search) return '/applications';
+  if (/^\/employer\/shifts(?:\/[0-9a-f-]{36}\/applications)?$/.test(url.pathname)
+    && [...url.searchParams.keys()].every((key) => key === 'workspace')) return url.pathname + url.search;
   if (url.pathname === '/dashboard' && [...url.searchParams.keys()].every((key) => ['mode', 'workspace', 'shift', 'source'].includes(key))) return url.pathname + url.search;
   return '/dashboard';
 }

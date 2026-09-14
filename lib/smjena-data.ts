@@ -37,7 +37,7 @@ async function getWorkerDashboard(userId: string, profile: Row): Promise<Dashboa
   const weekStart = startOfWeek(now);
   const [workerResult, feedResult, assignmentResult, trustedResult, ledgerResult, ownContactResult] = await Promise.all([
     supabase.from('worker_profiles').select('*').eq('user_id', userId).single(),
-    supabase.from('shifts').select('*').eq('status', 'published').eq('city', String(profile.city)).gt('ends_at', now.toISOString()).order('starts_at').limit(50),
+    supabase.from('shifts').select('*').eq('marketplace_model', 'legacy_claim').eq('status', 'published').eq('city', String(profile.city)).gt('ends_at', now.toISOString()).order('starts_at').limit(50),
     supabase.from('shift_assignments').select('*').eq('worker_id', userId).order('claimed_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('employer_id').eq('worker_id', userId),
     supabase.from('payment_ledger').select('assignment_id, amount_cents, created_at, status').eq('worker_id', userId).order('created_at', { ascending: false }).limit(200),
@@ -154,7 +154,7 @@ async function getEmployerDashboard(userId: string, profile: Row, employerId: st
 
   const [employerResult, shiftResult, trustedResult, ledgerResult, ownContactResult] = await Promise.all([
     supabase.from('employers').select('*').eq('id', employerId).single(),
-    supabase.from('shifts').select('*').eq('employer_id', employerId).order('starts_at', { ascending: false }).limit(100),
+    supabase.from('shifts').select('*').eq('marketplace_model', 'legacy_claim').eq('employer_id', employerId).order('starts_at', { ascending: false }).limit(100),
     supabase.from('trusted_workers').select('worker_id').eq('employer_id', employerId),
     supabase.from('payment_ledger').select('assignment_id, amount_cents, status').eq('employer_id', employerId),
     supabase.from('employer_contacts').select('phone').eq('employer_id', employerId).maybeSingle(),

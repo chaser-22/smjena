@@ -27,6 +27,13 @@
 .filters label { display: grid; gap: 8px; min-width: 200px; flex: 1; font-weight: 700; }
 .filters .button { margin-top: 0; }
 .list { display: grid; gap: 16px; }
+.control { margin: 12px 0; }
+.secondary { display: inline-flex; min-height: 44px; align-items: center; padding: 10px 4px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.form .check, .check { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 0; font-size: 14px; line-height: 1.6; }
+.form .check input, .check input { width: 24px; min-width: 24px; height: 24px; min-height: 24px; accent-color: #ba2630; }
+.list { margin-top: 24px; }
+.main { overflow-wrap: anywhere; }
+.form input { min-width: 0; }
 .listing { display: block; background: white; border: 1px solid #d9dce2; border-left: 4px solid #ba2630; padding: 24px; border-radius: 8px; }
 .listing h2 { margin: 8px 0; }
 .listing p { color: #485469; line-height: 1.7; }

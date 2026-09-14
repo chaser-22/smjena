@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { snapshotMarketplace, verifyModelBoundary } from './verify-model-boundary.mjs';
 import { verifyCapabilitiesAndProjection } from './verify-capabilities.mjs';
+import { verifyApplications } from './verify-applications.mjs';
 
 const root = new URL('../', import.meta.url);
 const modelMigrationFile = 'supabase/migrations/20260913213702_isolate_marketplace_models.sql';
@@ -336,5 +337,9 @@ if (populatedUpgrade) {
 await database.exec(preflightSql);
 await verifyModelBoundary(database, { employerId, employerUserId, workerOneId, workerTwoId, workerThreeId });
 await verifyCapabilitiesAndProjection(database, { employerId, employerUserId, workerOneId, workerTwoId });
+const beforeApplications = await snapshotMarketplace(database);
+await database.exec(await readFile(new URL('supabase/migrations/20260914113527_application_offer_acceptance.sql', root), 'utf8'));
+assert.deepEqual(await snapshotMarketplace(database), beforeApplications, 'Phase 3 changed historical records.');
+await verifyApplications(database, { employerId, employerUserId, workerOneId, workerTwoId, workerThreeId });
 console.log('all migrations, legacy transitions and model boundaries validated');
 await database.close();

@@ -1,6 +1,6 @@
 # SMJENA staging and acceptance testing
 
-SMJENA staging must use a separate Supabase project and a Vercel preview deployment. The acceptance suite creates clearly labelled `@smjena.test` accounts, a real shift and a real assignment, then removes them. It must never run against production.
+SMJENA staging must use a separate Supabase project and a Vercel preview deployment. The legacy acceptance test creates clearly labelled `@smjena.test` accounts, a shift and an assignment, then removes them. The Phase 3 test retains immutable application history in staging as described below. Neither test may run against production.
 
 ## Safety boundary
 
@@ -35,7 +35,7 @@ https://YOUR-STAGING-VERCEL-URL/auth/callback
 
 ## 2. Create a Vercel staging deployment
 
-Create a `staging` Git branch only after Vercel Preview environment variables point to the staging Supabase project. A preview deployment that still points to production can contaminate production even when its URL says “preview.”
+Deploy the migration branch `codex/application-model-foundation` only after its Vercel Preview environment variables point to the staging Supabase project. A preview deployment that still points to production can contaminate production even when its URL says “preview.” No additional Git branch is needed.
 
 Set these values for Preview only:
 
@@ -65,10 +65,11 @@ Test the local app:
 npm run test:e2e
 ```
 
-Or safely inspect a deployed URL without submitting data:
+Or inspect a staging URL running the same branch without submitting data (production
+may intentionally fail assertions for routes which are not released yet):
 
 ```text
-E2E_BASE_URL=https://smjena.vercel.app npm run test:e2e
+E2E_BASE_URL=https://YOUR-STAGING-VERCEL-URL npm run test:e2e
 ```
 
 ## 4. Run the staging marketplace acceptance test
@@ -89,7 +90,7 @@ Then run:
 npm run test:e2e:staging
 ```
 
-The test verifies the highest-risk cross-role story:
+The legacy test verifies the highest-risk old-model cross-role story:
 
 1. Creates isolated worker and employer fixtures.
 2. Signs both roles into separate browser contexts.
@@ -102,6 +103,45 @@ The test verifies the highest-risk cross-role story:
 9. Deletes all fixture data even when the test fails.
 
 The GitHub workflow is manual and uses a protected `staging` environment so acceptance tests cannot mutate data on every pull request.
+
+### Phase 3: approved application pilot fixture
+
+The full staging suite also requires `E2E_APPLICATION_WORKSPACE_ID`.
+This is an actual workspace UUID from the **separate staging database**, not the
+production workspace or project reference. Register a staging employer and create
+a firm whose name starts with `E2E ` through the staging UI. Confirm its owner and
+workspace ID using a read-only query before enabling it.
+
+An authorized database operator enables just that staging workspace in
+`private.application_pilot_workspaces` (`employer_id` = the verified UUID,
+`enabled` = true). This table is deliberately not exposed to browser writes.
+The migration enables no firm automatically. Do not enable the production project.
+
+Then set the verified UUID as `E2E_APPLICATION_WORKSPACE_ID` alongside the existing
+staging variables and run:
+
+```text
+npm run test:e2e:staging -- --grep "application offer"
+```
+
+The test uses a generated staging-only owner login token (no email is sent), creates
+a labelled staging worker, publishes through the UI, applies without revealing the
+address, offers without revealing contacts, accepts to unlock both contacts, withdraws
+to revoke contact, and cancels the listing. It verifies no legacy assignment exists.
+This tests session integration, **not SMTP delivery**.
+
+The test report attaches `retained-staging-fixture` with workspace, post and worker
+IDs, never credentials. New-model history is immutable; the test does not disable
+guards or add an administrative deletion endpoint to production just to clean up.
+Use a disposable staging project or a reviewed staging-only reset after tests.
+On failure, inspect retained fixtures before resetting; published test ads must not
+remain accessible in any public real-user environment. Restrict staging access and
+disable its pilot workspace after testing. Existing accepted contacts follow their
+normal expiry/cancellation rules even after that switch is disabled.
+
+The public browser and PGlite suites pass locally, but this authenticated Phase 3
+test has not yet been run. Supabase `deshfuafmxzdfvpobyyp` is the known production
+project and cannot satisfy this requirement.
 
 ## Genuine manual checks that remain
 

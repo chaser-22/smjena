@@ -171,6 +171,129 @@ back; prefer a forward fix. Never delete new profiles or firms to force a rollba
    navigation, PWA and notification changes.
 6. Approved legacy run-off, restricted historical access and optional mutual reviews.
 
+## Phase 3 implementation: application → offer → acceptance
+
+Implemented on the migration branch, **not approved for production activation**.
+Migration: `20260914113527_application_offer_acceptance.sql`.
+
+### Scope and architecture
+
+- `/shifts/[id]` distinguishes logged-out visitors, accounts without worker
+  capability, first-time applicants and existing applicants. An application is
+  free, requires no CV and does not reserve capacity.
+- `/applications` shows real effective states, offer deadlines, explicit acceptance,
+  decline/withdrawal and accepted contacts. Personal phone entry is available here;
+  no earnings, attendance or payment controls are introduced in this journey.
+- `/employer/shifts?workspace=<uuid>` publishes an immutable advertisement using
+  an idempotent request key and an explicitly selected workspace. Employer contacts
+  and form state are keyed to the workspace so switching firms cannot reuse values.
+- `/employer/shifts/[id]/applications` shows exact database counts for applications,
+  offers awaiting response and acceptances. Employer offers, rejection, revocation
+  and whole-post cancellation are separate decisions. No worker is assigned automatically.
+- The existing `shifts` row is an immutable source record for the new model.
+  `application_posts` holds its operational open/cancelled state and safe terms.
+  Legacy dashboards explicitly exclude application-model sources. The source's
+  old `status`/`claimed_count` are NOT application availability or fill metrics.
+  Legacy mutation/assignment/ledger guards remain; new lifecycle operations never
+  write worker reputation, attendance, assignments or wage-ledger records.
+- `shift_applications` stores applications; `application_inbox` is a security-invoker
+  view which computes effective expiry on every read. Raw status can lag elapsed
+  time; API/UI readers must use `effective_status`, not raw `status`, for current state.
+- New API functions are security-invoker wrappers over narrowly authorized private
+  functions. Public tables have RLS and SELECT only; browsers cannot directly write
+  application states, counters or the pilot configuration. No service key in UI code.
+- PWA shell caching no longer precaches `/`, which can redirect an authenticated
+  installation to private content. Cache v2 invalidates the old shell cache and
+  includes only the public offline page and icon; application data is never precached.
+
+### Provisional pilot rules — require product/counsel approval before launch
+
+1. Active offers hold a place for 30 minutes, capped at shift start. The sum of
+   accepted applications and unexpired offers cannot exceed advertised capacity.
+   Applying never changes that sum. All capacity transitions lock the post row.
+2. Acceptance locks the worker first, then post/application, and checks overlapping
+   accepted applications and legacy active claims. A legacy-assignment trigger also
+   checks accepted application commitments. Real concurrent PostgreSQL tests remain
+   required: sequential PGlite tests do not prove concurrent behaviour.
+   Deadline decisions capture wall-clock time after acquiring locks; a regression
+   test rejects acceptance when a transaction began before expiry but acts after it.
+3. Each worker can apply once per post. Retries return the same application; terminal
+   applications are not revived. Reapplication and revised offers need a later decision.
+4. Workers may withdraw and employers may revoke an offer/acceptance before start.
+   Whole-post cancellation revokes all active applications. No automatic penalties.
+   These actions are not represented as terminating a separately agreed contract.
+5. The accepted worker receives the employer phone and exact address; current firm
+   members receive that worker's phone. `application_contact` authorizes every read
+   by application, identity, membership, state and time. Access ends on withdrawal,
+   revocation, cancellation or scheduled shift end. Information already disclosed
+   cannot be recalled from someone's device; retention rules require counsel approval.
+6. Members cannot apply to their own workspace. Adding membership before acceptance
+   is checked again; account metadata is never an authorization claim.
+7. Public area, role and requirements use controlled choices; exact address has its
+   own private field. Public business display name requires deliberate publication
+   confirmation, length validation and rejection of obvious contact/link strings.
+   This is not identity verification or automated proof that every string is safe.
+8. Abuse ceilings: 20 new posts per firm/day and 50 applications per worker/day.
+   These are not commercial posting entitlements. Paid posting, plans and separate
+   SOS promotion remain Phase 4 and must precede general production intake.
+
+State transitions:
+
+| Current state | Worker action | Employer action | Time |
+| --- | --- | --- | --- |
+| applied | withdrawn | offered / rejected | expired at start |
+| offered | accepted / declined / withdrawn | cancelled (revoked) | expired at deadline |
+| accepted | withdrawn before start | cancelled before start | remains accepted history, not completed work |
+| declined / withdrawn / expired / rejected / cancelled | no revival | no revival | terminal |
+
+### Pilot gate, events and limits
+
+`private.application_pilot_workspaces` is empty after migration. Without explicit
+database-operator enablement for a specific isolated test firm, posting/applying/
+offering/accepting are disabled. Disabling the pilot hides its public listings and
+blocks new commitments; withdrawal/revocation/cancellation remain available. It
+does not automatically cancel previously accepted commitments or remove their
+authorized contact window. Do not use this gate to bypass legal/commercial readiness.
+
+`private.application_events` records successful transitions atomically with actor,
+application/post identifiers and timestamp. Retries do not invent another success
+event. No phone, address, CV or free-form analytics payload is recorded. These are
+real transition records, not fabricated product metrics. Time-derived expiry can be
+visible before an expiry event is materialized by a mutation; analytics must account
+for deadlines rather than simply counting event rows.
+
+Screens refresh every 20 seconds while visible, with a manual refresh control. New
+offer/acceptance push or email delivery is **not implemented in this phase**; do not
+claim a worker has been notified. Pilot testers must keep their inbox screens open.
+The reliable notification outbox remains Phase 4. Existing legacy push is preserved.
+
+Current list limits are explicit: 200 newest applications and 100 newest employer
+posts. Employer summary counts cover all records. Pagination, mutual reviews,
+term amendments, compensation increases and invitation-specific intake remain
+follow-up work, not hidden functional promises.
+
+### Verification status (2026-09-14)
+
+- Passed: lint, strict TypeScript/production build, 22 unit/safety tests, 28 public
+  desktop/mobile Playwright checks and dependency audit (zero vulnerabilities).
+- Passed in disposable PGlite: clean and populated upgrades, retained legacy
+  history, pilot gate, public projection/privacy, idempotent publishing/applying,
+  pre-offer acceptance rejection, capacity holds/release, expiry including retries,
+  accepted contact disclosure, overlap rejection, rejection, decline, withdrawal,
+  revocation, whole-post cancellation, membership revocation and no legacy assignment.
+- Prepared but **not executed**: authenticated two-role staging browser test. It uses
+  an explicitly enabled `E2E ` workspace and retains immutable test history only in
+  the isolated staging database. See `staging-setup.md` for setup and cleanup policy.
+- Not verified: authenticated screen layouts/accessibility in real Supabase sessions,
+  hosted PostgREST permissions, simultaneous requests, SMTP, and actual notification
+  delivery. Supabase local lint/advisors could not connect to 127.0.0.1:54322.
+- The supplied project `deshfuafmxzdfvpobyyp` is production, not staging. No migration
+  or test fixtures were applied there. No merge to the production branch is included.
+
+Production is blocked on isolated staging verification, counsel/commercial decisions,
+reliable offer notifications and controlled cutover. Additive schema rollback is not
+data deletion: retain application histories and use a reviewed forward fix.
+
 ## Decisions still required before public cutover
 
 The architectural plan is approved. Legal and commercial values are not implied
