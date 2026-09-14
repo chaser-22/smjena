@@ -2,6 +2,7 @@ import 'server-only';
 
 import webPush from 'web-push';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isTrustedPushEndpoint } from '@/lib/push-safety';
 
 type ShiftNotification = {
   id: string;
@@ -67,6 +68,7 @@ export async function notifyAvailableWorkers(shift: ShiftNotification) {
   });
 
   const results = await Promise.all(subscriptions.map(async (subscription) => {
+    if (!isTrustedPushEndpoint(subscription.endpoint)) return false;
     try {
       await webPush.sendNotification({
         endpoint: subscription.endpoint,
@@ -130,6 +132,7 @@ export async function notifyShiftCancellation(input: {
   });
 
   const results = await Promise.all(subscriptions.map(async (subscription) => {
+    if (!isTrustedPushEndpoint(subscription.endpoint)) return false;
     try {
       await webPush.sendNotification({
         endpoint: subscription.endpoint,

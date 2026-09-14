@@ -29,6 +29,12 @@ export function dashboardHref(context: DashboardContext) {
   return context.role === 'worker' ? '/dashboard?mode=worker' : `/dashboard?mode=employer&workspace=${context.employerId}`;
 }
 
+export function marketplaceHome(access: AccountAccess) {
+  if (access.worker && !access.workspaces.length) return '/shifts';
+  if (!access.worker && access.workspaces.length === 1) return `/employer/shifts?workspace=${access.workspaces[0].id}`;
+  return '/settings';
+}
+
 // Only local product destinations. Reject encodings, backslashes and arbitrary
 // query keys rather than attempting to normalize potentially hostile redirects.
 export function safeReturnPath(value: unknown): string {
@@ -38,6 +44,7 @@ export function safeReturnPath(value: unknown): string {
   if (/^\/shifts(?:\/[0-9a-f-]{36})?$/.test(url.pathname) && !url.search) return url.pathname;
   if (url.pathname === '/settings' && !url.search) return '/settings';
   if (url.pathname === '/applications' && !url.search) return '/applications';
+  if (url.pathname === '/notifications' && !url.search) return '/notifications';
   if (url.pathname === '/employer/billing'
     && [...url.searchParams.keys()].every((key) => key === 'workspace')
     && url.searchParams.getAll('workspace').length <= 1

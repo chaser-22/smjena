@@ -20,7 +20,9 @@ export async function getPublicShifts(city?: string, id?: string): Promise<{ shi
     .gt('starts_at', new Date().toISOString()).order('starts_at').order('shift_id').limit(50);
   if (city) query = query.eq('city', city);
   if (id) query = query.eq('shift_id', id);
-  const { data, error } = await query;
+  // Bound the entire read, including transient retries. A slow service must
+  // produce an honest unavailable state rather than an indefinite loading page.
+  const { data, error } = await query.abortSignal(AbortSignal.timeout(4000));
   return error ? { shifts: [], unavailable: true } : { shifts: data as PublicShift[], unavailable: false };
 }
 

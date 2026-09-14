@@ -114,6 +114,9 @@ test('public shift browsing is anonymous, responsive and does not claim availabi
 });
 
 test('settings requires login and callback failures preserve a safe destination', async ({ page }) => {
+  await page.goto('/notifications');
+  await expect(page.getByRole('heading', { name: 'Dobro došao nazad.' })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('next')).toBe('/notifications');
   await page.goto('/settings');
   await expect(page).toHaveURL(/\/login\?next=(?:%2F|\/)settings$/);
   await page.goto('/auth/callback?next=/shifts');
@@ -132,7 +135,7 @@ test('application and employer routes require login and preserve their destinati
   }
 });
 
-test('homepage role entrances carry the choice into registration', async ({
+test('homepage starts with browsing and preserves employer context through login', async ({
   page,
 }) => {
   await page.goto('/');
@@ -140,13 +143,14 @@ test('homepage role entrances carry the choice into registration', async ({
     'Kad fali',
   );
   await page.getByRole('link', { name: 'Pronađi smjenu', exact: true }).click();
-  await expect(
-    page.getByRole('radio', { name: 'Radnik', exact: true }),
-  ).toBeChecked();
+  await expect(page).toHaveURL(/\/shifts$/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('sljedeću smjenu');
   await page.goto('/');
   await page
     .getByRole('link', { name: 'Pronađi radnika', exact: true })
     .click();
+  await expect(page.getByRole('tab', { name: 'Imam nalog' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Napravi nalog' }).click();
   await expect(
     page.getByRole('radio', { name: 'Poslodavac', exact: true }),
   ).toBeChecked();
@@ -166,7 +170,7 @@ test('keyboard navigation switches auth intent and opens trust explanations', as
   await page.keyboard.press('Home');
   await expect(page.getByRole('tab', { name: 'Imam nalog' })).toBeFocused();
   await page.goto('/');
-  await page.getByText('Kako se prati naknada?', { exact: true }).focus();
+  await page.getByText('Ko plaća radnika?', { exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(
     page.getByText(/ne izvršava bankovnu uplatu/),

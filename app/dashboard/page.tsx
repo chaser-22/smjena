@@ -5,7 +5,7 @@ import { getDashboardData } from '@/lib/smjena-data';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { getAccountAccess } from '@/lib/account-data';
-import { resolveDashboardContext } from '@/lib/account-context';
+import { marketplaceHome, resolveDashboardContext } from '@/lib/account-context';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Moja SMJENA' };
@@ -17,6 +17,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   if (error || !data.user) redirect('/login');
   const params = await searchParams;
   const access = await getAccountAccess(data.user.id);
+  if (!params.mode && !params.workspace) redirect(marketplaceHome(access));
   const context = resolveDashboardContext(access, params.mode, params.workspace);
   if (!context) redirect('/settings');
   const dashboard = await getDashboardData(data.user, context);

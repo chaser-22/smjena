@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "oxlint",
-    "test": "node --experimental-strip-types --test lib/smjena.test.ts lib/auth.test.ts lib/account-context.test.ts lib/applications.test.ts tests/e2e/staging-safety.test.ts",
+    "test": "node --experimental-strip-types --test lib/smjena.test.ts lib/auth.test.ts lib/account-context.test.ts lib/applications.test.ts lib/push-safety.test.ts tests/e2e/staging-safety.test.ts",
     "test:db": "node scripts/validate-migrations.mjs && node scripts/validate-migrations.mjs --populated-upgrade",
     "test:e2e": "playwright test --project=public-desktop --project=public-mobile",
     "test:e2e:staging": "playwright test --project=staging-marketplace",

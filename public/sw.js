@@ -36,8 +36,8 @@ self.addEventListener("push", (event) => {
     icon: data.icon || "/favicon.svg",
     badge: data.badge || "/favicon.svg",
     data: { url: data.url || "/dashboard" },
-    tag: data.url || "smjena-update",
-    renotify: true,
+    tag: data.tag || data.url || "smjena-update",
+    renotify: false,
   }));
 });
 

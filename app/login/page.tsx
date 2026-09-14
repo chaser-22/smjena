@@ -28,7 +28,7 @@ export default async function LoginPage({
   if (data.user) redirect(next);
   const intent =
     params.intent === 'register' && !params.error ? 'register' : 'login';
-  const role = params.role === 'employer' ? 'employer' : 'worker';
+  const role = params.role === 'employer' || next.startsWith('/employer/') ? 'employer' : 'worker';
 
   return (
     <div className={styles.authPage}>
@@ -52,7 +52,7 @@ export default async function LoginPage({
           </h2>
           <p>
             Jasni uslovi. Ukupna naknada unaprijed. Kontakt za dogovor nakon
-            potvrde smjene.
+            izbora poslodavca i prihvatanja ponude.
           </p>
           <div className={styles.authStoryFoot}>
             <LockKeyhole size={20} aria-hidden="true" />

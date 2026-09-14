@@ -1,6 +1,8 @@
 'use server';
 
 import { z } from 'zod';
+import { after } from 'next/server';
+import { deliverApplicationNotifications } from '@/lib/application-notifications';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { applicationError, decisions, montenegroInstant, PublishApplicationSchema, statusLabels, type ApplicationStatus, type MarketplaceResult } from '@/lib/applications';
@@ -18,6 +20,7 @@ export async function applicationAction(_previous: MarketplaceResult, form: Form
     : decision === 'cancel-post' ? await client.rpc('cancel_application_post', { target_shift: id })
       : await client.rpc('transition_application', { target_application: id, decision });
   if (result.error) return { error: applicationError(result.error.message) };
+  after(deliverApplicationNotifications);
   revalidatePath('/applications');
   revalidatePath('/employer/shifts', 'layout');
   revalidatePath('/shifts', 'layout');

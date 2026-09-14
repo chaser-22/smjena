@@ -1,5 +1,44 @@
 # Application marketplace migration
 
+## Current status — 2026-09-15 (Europe/Stockholm)
+
+The owner confirmed the existing **Marko / Cetinje** workspace and authorized its
+application pilot enablement. It is now enabled in production; no publishing gate
+was turned off again. No accounts, shifts, applications, credits or reviews were
+invented for production testing. The older phase notes below describe historical
+implementation gates, not the current activation status.
+
+The notification migration (`20260914223024_application_notifications.sql`) is
+applied. Events create recipient-scoped inbox entries atomically; push is opt-in,
+uses a private leased outbox, bounded retries, stale-offer suppression, and trusted
+push-service endpoints. Browser roles cannot lease jobs or access endpoint keys
+through the worker RPC. Acceptance by a push service is not delivery/read proof.
+Preferences default off; enabling the marketplace does not grant notification consent.
+
+This release adds `/notifications`, sends default authenticated navigation to the
+application marketplace, preserves explicitly selected legacy views, and replaces
+instant-claim promises on the homepage. Public database reads time out after four
+seconds with an unavailable state, never a fabricated empty success state.
+
+Local verification: 28 desktop/mobile browser tests, 23 unit tests, clean and
+populated database suites, service-worker checks, lint and strict production build
+passed. Dependency audit returned zero vulnerabilities. Real authenticated browser
+journeys and actual push delivery are not verified by these checks. Hosted SQL
+confirmed one enabled workspace, zero seeded activity, and service-only push RPCs.
+
+Delivery currently runs after application mutations and inbox visits. The queue is
+durable, but no independent periodic worker is configured: delayed retries need
+subsequent traffic. Reliable unattended offer delivery remains unfinished. Pricing,
+SOS redemption, preferred-worker invitations, optional mutual reviews and legal
+approval also remain outstanding; this is not a claim that every phase is complete.
+
+Hosted advisors retain ten legacy authenticated definer-function warnings and
+disabled leaked-password protection. Internal deny-all tables intentionally have
+no client policies. One pre-existing composite billing-usage foreign key needs a
+covering index; unused-index notices are expected in this empty pilot.
+See [database linter guidance](https://supabase.com/docs/guides/database/database-linter)
+and [password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+
 ## Deployment record — 2026-09-14
 
 The owner authorized deployment to the existing pre-launch production environment.
@@ -15,7 +54,7 @@ The remote migration tool assigned execution-time versions. Local SQL files were
 renamed to those recorded versions without changing their SQL; production migration
 history was **not** edited. Do not reapply the old filenames from earlier commits.
 
-Pilot enablement is still pending explicit confirmation of the existing workspace
+At this earlier checkpoint, pilot enablement was pending confirmation of the existing workspace
 (`Marko`, Cetinje). A combined history-repair/pilot-enablement SQL request was rejected
 by safety review; a read-only check confirmed zero enabled workspaces. No authenticated
 pilot fixtures or public test ads were created. Separate staging remains supported,

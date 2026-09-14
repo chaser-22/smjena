@@ -5,6 +5,7 @@ import { snapshotMarketplace, verifyModelBoundary } from './verify-model-boundar
 import { verifyCapabilitiesAndProjection } from './verify-capabilities.mjs';
 import { verifyApplications } from './verify-applications.mjs';
 import { verifyBilling } from './verify-billing.mjs';
+import { verifyNotifications } from './verify-notifications.mjs';
 
 const root = new URL('../', import.meta.url);
 const modelMigrationFile = 'supabase/migrations/20260914171829_isolate_marketplace_models.sql';
@@ -28,6 +29,7 @@ await database.exec(`
   create schema auth;
   create role anon;
   create role authenticated;
+  create role service_role;
   create table auth.users (
     id uuid primary key default gen_random_uuid(),
     email text,
@@ -346,5 +348,7 @@ const beforeBilling = await snapshotMarketplace(database);
 await database.exec(await readFile(new URL('supabase/migrations/20260914173021_employer_billing_foundation.sql', root), 'utf8'));
 assert.deepEqual(await snapshotMarketplace(database), beforeBilling, 'Phase 4A changed historical records.');
 await verifyBilling(database, { employerId, employerUserId, workerOneId, workerTwoId });
+await database.exec(await readFile(new URL('supabase/migrations/20260914223024_application_notifications.sql', root), 'utf8'));
+await verifyNotifications(database, { employerId, employerUserId, workerOneId, workerTwoId });
 console.log('all migrations, legacy transitions and model boundaries validated');
 await database.close();

@@ -34,7 +34,7 @@ export default async function SettingsPage() {
         <h2>Moje firme</h2>
         {access.workspaces.length ? <ul className={styles.workspaces}>{access.workspaces.map((workspace) => <li key={workspace.id} className={styles.workspace}>
           <div><strong>{workspace.name}</strong><p className="text-sm">{workspace.memberRole === 'owner' ? 'Vlasnik naloga firme' : 'Menadžer'}</p></div>
-          <Link href={dashboardHref({ role: 'employer', employerId: workspace.id })}>Otvori firmu →</Link>
+          <Link href={dashboardHref({ role: 'employer', employerId: workspace.id })}>Prethodni prikaz firme →</Link>
           <Link href={`/employer/shifts?workspace=${workspace.id}`}>Oglasi i prijave →</Link>
           {workspace.memberRole === 'owner' && <Link href={`/employer/billing?workspace=${workspace.id}`}>Objave i promocije →</Link>}
         </li>)}</ul> : <p>Još nijesi povezan/a sa firmom.</p>}

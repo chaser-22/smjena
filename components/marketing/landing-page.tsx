@@ -30,20 +30,20 @@ export function LandingPage() {
               <span>Stiže SMJENA.</span>
             </h1>
             <p className={styles.heroDescription}>
-              Vidi smjenu. Vidi cijenu. Potvrdi mjesto.
+              Pronađi smjenu. Prijavi se. Izaberi ponudu.
               <br />
               Bez CV-a i dugog čekanja.
             </p>
             <div className={styles.heroActions}>
               <Link
                 className={styles.primary}
-                href="/login?intent=register&role=worker"
+                href="/shifts"
               >
                 Pronađi smjenu <ArrowUpRight aria-hidden="true" />
               </Link>
               <Link
                 className={styles.secondary}
-                href="/login?intent=register&role=employer"
+                href="/employer/shifts"
               >
                 Pronađi radnika <ArrowRight aria-hidden="true" />
               </Link>
@@ -98,10 +98,10 @@ export function LandingPage() {
             <li>
               <span>02</span>
               <div>
-                <h3>Potvrdi mjesto.</h3>
+                <h3>Prijavi se bez CV-a.</h3>
                 <p>
-                  Radnik vidi cijelu ponudu i jednim potezom preuzima obavezu
-                  dolaska.
+                  Radnik šalje prijavu. Poslodavac pregleda prijave i bira kome
+                  će poslati ponudu. Prijava ne rezerviše mjesto.
                 </p>
               </div>
             </li>
@@ -110,8 +110,8 @@ export function LandingPage() {
               <div>
                 <h3>Znate šta slijedi.</h3>
                 <p>
-                  Kontakt, dolazak, završetak i evidencija naknade ostaju vezani
-                  za smjenu.
+                  Radnik prihvata ili odbija ponudu. Kontakt se otkriva tek nakon
+                  prihvatanja; zakonito angažovanje i plaćanje dogovarate direktno.
                 </p>
               </div>
             </li>
@@ -130,15 +130,15 @@ export function LandingPage() {
                 <Check aria-hidden="true" /> Uslovi prije potvrde
               </li>
               <li>
-                <Check aria-hidden="true" /> Mjesto rezervisano odmah
+                <Check aria-hidden="true" /> Ti odlučuješ koju ponudu prihvataš
               </li>
               <li>
-                <Check aria-hidden="true" /> Pouzdanost koja se gradi radom
+                <Check aria-hidden="true" /> Bez CV-a i naknade za radnike
               </li>
             </ul>
             <Link
               className={styles.primary}
-              href="/login?intent=register&role=worker"
+              href="/shifts"
             >
               Vidi smjene <ArrowUpRight aria-hidden="true" />
             </Link>
@@ -152,18 +152,18 @@ export function LandingPage() {
             </h2>
             <ul>
               <li>
-                <Check aria-hidden="true" /> Jasan oglas ispod 60 sekundi
+                <Check aria-hidden="true" /> Kratak oglas sa jasnim uslovima
               </li>
               <li>
                 <Check aria-hidden="true" /> Prati popunjena mjesta
               </li>
               <li>
-                <Check aria-hidden="true" /> Ponovo pozovi pouzdanu ekipu
+                <Check aria-hidden="true" /> Ti biraš koga želiš da angažuješ
               </li>
             </ul>
             <Link
               className={styles.lightAction}
-              href="/login?intent=register&role=employer"
+              href="/employer/shifts"
             >
               Objavi potrebu <ArrowUpRight aria-hidden="true" />
             </Link>
@@ -189,12 +189,13 @@ export function LandingPage() {
           <div className={styles.trustRows}>
             <details>
               <summary>
-                Šta znači potvrda smjene?
+                Da li prijava rezerviše mjesto?
                 <ArrowRight aria-hidden="true" />
               </summary>
               <p>
-                Potvrdom zauzimaš mjesto i preuzimaš obavezu da dođeš. Prije
-                otkazivanja vidiš posljedice po rezultat pouzdanosti.
+                Ne. Poslodavac pregleda prijave i šalje ponudu. Tek kada radnik
+                prihvati, dogovor je potvrđen u aplikaciji. To nije potvrda ugovora,
+                prijave radnika, dolaska ili plaćanja.
               </p>
             </details>
             <details>
@@ -203,18 +204,18 @@ export function LandingPage() {
                 <ArrowRight aria-hidden="true" />
               </summary>
               <p>
-                Druga strana ga vidi samo tokom aktivnog, potvrđenog angažmana.
-                Ne prikazuje se u javnoj ponudi.
+                Druga strana ga vidi nakon izbora i prihvatanja ponude, do kraja
+                termina ili povlačenja/otkazivanja. Ne prikazuje se u javnom oglasu.
               </p>
             </details>
             <details>
               <summary>
-                Kako se prati naknada?
+                Ko plaća radnika?
                 <ArrowRight aria-hidden="true" />
               </summary>
               <p>
-                Ukupan iznos vidiš prije potvrde. Nakon rada SMJENA evidentira
-                obavezu i njen status, ali ne izvršava bankovnu uplatu.
+                Poslodavac. Ponuđeni iznos vidiš prije prijave. SMJENA ne obračunava
+                zaradu, ne izvršava bankovnu uplatu i ne uzima procenat naknade radniku.
               </p>
             </details>
             <details>
@@ -223,13 +224,14 @@ export function LandingPage() {
                 <ArrowRight aria-hidden="true" />
               </summary>
               <p>
-                Ne. Oznaka verifikacije, ocjene i završeni angažmani prikazuju
-                se samo kada za njih postoje stvarni podaci.
+                Ne. Registracija nije provjera identiteta, sposobnosti za rad ili
+                zakonitosti angažovanja. Poslodavac mora obaviti potrebne provjere.
               </p>
             </details>
           </div>
         </section>
       </main>
+      <p className={styles.finePrint}>Nacrt objašnjenja odgovornosti: poslodavac je odgovoran za zakonit osnov angažovanja, prijavu radnika, dozvole, poreze, doprinose, uslove rada i plaćanje. Potrebno odobrenje pravnika u Crnoj Gori prije javnog lansiranja.</p>
       <footer className={styles.footer}>
         <PublicBrand />
         <p>Ljudi za smjenu. Smjena za ljude.</p>

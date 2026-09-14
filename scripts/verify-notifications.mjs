@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+export async function verifyNotifications(db, { employerId, employerUserId, workerOneId, workerTwoId }) {
+  const actor = async (id, role='authenticated') => {
+    await db.exec('reset role');
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id??'']);
+    if(role!=='operator') await db.exec(`set role ${role}`);
+  };
+  assert.equal((await db.query('select count(*)::int n from public.marketplace_notifications')).rows[0].n,0,'No historical messages should be manufactured.');
+  for(const user of [employerUserId,workerOneId]) {
+    await actor(user);
+    await db.query('insert into public.notification_preferences(user_id,application_push) values($1,true)',[user]);
+    await db.query("insert into public.push_subscriptions(user_id,endpoint,p256dh,auth_secret) values($1,$2,'test-key','test-auth')",[user,`https://fcm.googleapis.com/fcm/send/${user}`]);
+  }
+  await actor(employerUserId);
+  const shift=(await db.query(`select public.publish_application_shift($1,gen_random_uuid(),'Test notification hotel','Konobar','Centar','Private test street',now()+interval '50 days',now()+interval '50 days 6 hours',8000,1::smallint,'{}'::text[],true) id`,[employerId])).rows[0].id;
+  await actor(workerOneId);
+  const application=(await db.query('select public.apply_to_shift($1) id',[shift])).rows[0].id;
+  await db.query('select public.apply_to_shift($1)',[shift]);
+  await actor(employerUserId);
+  const own=(await db.query('select id,kind from public.marketplace_notifications')).rows;
+  assert.equal(own.length,1); assert.equal(own[0].kind,'applied');
+  await db.query("select public.transition_application($1,'offer')",[application]);
+  await db.query("select public.transition_application($1,'offer')",[application]);
+  await actor(workerOneId);
+  assert.equal((await db.query('select id,kind from public.marketplace_notifications')).rows.length,1);
+  assert.equal((await db.query('update public.marketplace_notifications set read_at=now() where id=$1 returning id',[own[0].id])).rows.length,0);
+  await assert.rejects(()=>db.query('select * from private.application_push_outbox'),/permission denied/);
+  await assert.rejects(()=>db.query('select * from public.lease_application_push()'),/permission denied/);
+  await assert.rejects(()=>db.query('select event_id from public.marketplace_notifications'),/permission denied/);
+  await actor(workerTwoId);
+  assert.equal((await db.query('select id from public.marketplace_notifications')).rows.length,0);
+  await actor(null,'service_role');
+  const jobs=(await db.query('select * from public.lease_application_push()')).rows;
+  assert.equal(jobs.length,2,'One job for each actual event, even after retries.');
+  assert.equal((await db.query('select * from public.lease_application_push()')).rows.length,0,'Leased jobs must not be duplicated.');
+  const first=jobs.find(j=>j.kind==='applied');
+  await db.query("select public.finish_application_push($1,gen_random_uuid(),'accepted_by_service')",[first.job_id]);
+  await actor(null,'operator');
+  assert.equal((await db.query('select state from private.application_push_outbox where id=$1',[first.job_id])).rows[0].state,'leased','Wrong lease token cannot acknowledge a job.');
+  await actor(null,'service_role');
+  await db.query("select public.finish_application_push($1,$2,'retry')",[first.job_id,first.token]);
+  await actor(workerOneId);
+  await db.query("select public.transition_application($1,'decline')",[application]);
+  await actor(null,'operator');
+  await db.query("update private.application_push_outbox set next_attempt_at=now()-interval '1 minute',lease_until=now()-interval '1 minute' where state in ('pending','leased')");
+  await actor(null,'service_role');
+  const retries=(await db.query('select * from public.lease_application_push()')).rows;
+  assert.equal(retries.some(j=>j.kind==='offered'),false,'Do not send stale offers.');
+  const retried=retries.find(j=>j.kind==='applied');
+  assert.ok(retried); assert.notEqual(retried.token,first.token);
+  await db.query("select public.finish_application_push($1,$2,'accepted_by_service')",[retried.job_id,retried.token]);
+  await actor(employerUserId);
+  await db.query('update public.notification_preferences set application_push=false where user_id=$1',[employerUserId]);
+  await actor(null,'service_role');
+  await db.query('select * from public.lease_application_push()');
+  await actor(null,'operator');
+  const states=(await db.query('select state from private.application_push_outbox')).rows.map(r=>r.state);
+  assert.ok(states.includes('accepted_by_service')); assert.ok(states.includes('skipped'));
+  await actor(null,'anon');
+  await assert.rejects(()=>db.query('select id from public.marketplace_notifications'),/permission denied/);
+  await assert.rejects(()=>db.query('select * from public.lease_application_push()'),/permission denied/);
+  await actor(null,'operator');
+  console.log('Notifications: transactional events, recipient RLS, worker/employer opt-in, service-only leases, retries, stale-offer suppression and opt-out verified');
+}

@@ -53,15 +53,15 @@ export function ShiftSignal() {
           <small>Uslovi objavljeni</small>
         </div>
         <div className={styles.stateSeen}>
-          <span>02 / SIGNAL</span>
-          <strong>Ponuda je viđena</strong>
-          <small>Vrijeme · lokacija · naknada</small>
+          <span>02 / PRIJAVA I IZBOR</span>
+          <strong>Poslodavac šalje ponudu</strong>
+          <small>Prijava ne rezerviše mjesto</small>
         </div>
         <div className={styles.stateConfirmed}>
           <span>
             <Check /> 03 / POTVRĐENO
           </span>
-          <strong>Mjesto rezervisano</strong>
+          <strong>Radnik prihvata ponudu</strong>
           <small>Kontakt je dostupan</small>
         </div>
       </div>
@@ -69,8 +69,8 @@ export function ShiftSignal() {
         <i />
       </div>
       <p className="sr-only">
-        Animirana ilustracija procesa: lokal objavljuje potrebu, ponuda stiže
-        dostupnom radniku i mjesto se potvrđuje. Ovo nije prikaz aktivnosti
+        Animirana ilustracija procesa: lokal objavljuje uslove, radnik se prijavljuje,
+        poslodavac šalje ponudu, a radnik je prihvata. Ovo nije prikaz aktivnosti
         uživo.
       </p>
     </figure>

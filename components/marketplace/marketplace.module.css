@@ -1,6 +1,6 @@
 .page { min-height: 100vh; background: #f7f5f2; color: #152033; }
 .header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; max-width: 1120px; margin: auto; padding: 20px 24px; border-bottom: 1px solid #d9dce2; }
-.header nav { display: flex; gap: 12px; }
+.header nav { display: flex; gap: 4px; flex-wrap: wrap; }
 .header nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; font-weight: 700; font-size: 14px; }
 .main { max-width: 1040px; margin: auto; padding: 48px 24px 72px; }
 .main h1 { font-size: clamp(32px, 6vw, 58px); font-weight: 900; letter-spacing: -.045em; line-height: 1.05; margin: 12px 0 20px; }
