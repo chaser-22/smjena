@@ -5,7 +5,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config';
 export type PublicShift = {
   shift_id: string; role: string; employer_name: string; city: string;
   location_area: string; starts_at: string; ends_at: string;
-  pay_cents: number; workers_needed: number; requirements: string[];
+  pay_cents: number; workers_needed: number; requirements: string[]; is_sos: boolean;
 };
 
 export async function getPublicShifts(city?: string, id?: string): Promise<{ shifts: PublicShift[]; unavailable: boolean }> {
@@ -15,9 +15,9 @@ export async function getPublicShifts(city?: string, id?: string): Promise<{ shi
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  let query = supabase.from('public_shift_listings')
-    .select('shift_id, role, employer_name, city, location_area, starts_at, ends_at, pay_cents, workers_needed, requirements')
-    .gt('starts_at', new Date().toISOString()).order('starts_at').order('shift_id').limit(50);
+  let query = supabase.from('public_shift_feed')
+    .select('shift_id, role, employer_name, city, location_area, starts_at, ends_at, pay_cents, workers_needed, requirements, is_sos')
+    .gt('starts_at', new Date().toISOString()).order('is_sos', { ascending: false }).order('starts_at').order('shift_id').limit(50);
   if (city) query = query.eq('city', city);
   if (id) query = query.eq('shift_id', id);
   // Bound the entire read, including transient retries. A slow service must

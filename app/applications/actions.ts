@@ -43,13 +43,15 @@ export async function publishApplicationAction(_previous: MarketplaceResult, for
   const client = await createClient();
   const { data: auth, error } = await client.auth.getUser();
   if (error || !auth.user) return { error: 'Prijava je istekla. Prijavi se ponovo.' };
-  const result = await client.rpc('publish_application_shift', {
+  const result = await client.rpc('publish_application_shift_with_credit', {
     target_employer: input.workspace, request_key: input.requestId, public_name: input.publicName,
     job_role: input.role, location_area: input.area, exact_address: input.address, starts_at: starts, ends_at: ends,
     pay_cents: Math.round(input.compensation * 100), places: input.places, requirements: input.requirements, public_copy_confirmed: input.confirmed,
+    credit_confirmed: form.get('creditConfirmed') === 'yes' && input.confirmed,
   });
   if (result.error) return { error: applicationError(result.error.message) };
   revalidatePath('/shifts');
   revalidatePath('/employer/shifts');
+  revalidatePath('/employer/billing');
   return { message: 'Oglas je sačuvan. Otvori prijave da vidiš trenutni status.', href: `/employer/shifts/${result.data}/applications` };
 }

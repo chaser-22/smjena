@@ -32,6 +32,13 @@ export function montenegroInstant(value: string): string | null {
 }
 
 export function applicationError(message: string): string {
+  if (/Billing owner required/.test(message)) return 'Samo vlasnik naloga firme može koristiti kredite.';
+  if (/Posting credit confirmation required/.test(message)) return 'Uslovi objavljivanja su promijenjeni. Osvježi formu i potvrdi korišćenje kredita.';
+  if (/Standard posting credit required/.test(message)) return 'Nema važećeg kredita za standardnu objavu. Otvori pregled kredita firme.';
+  if (/SOS already active/.test(message)) return 'Ovaj oglas već ima aktivnu SOS promociju. Drugi kredit nije potrošen.';
+  if (/SOS duration exceeds/.test(message)) return 'Do početka smjene nema dovoljno vremena za cijelo trajanje ovog SOS kredita.';
+  if (/SOS credit unavailable|Posting credit unavailable|Posting credit exhausted/.test(message)) return 'Kredit više nije dostupan ili su mu promijenjeni uslovi. Osvježi pregled kredita.';
+  if (/Credit request mismatch/.test(message)) return 'Ovaj pokušaj pripada drugoj operaciji. Osvježi stanje prije nastavka.';
   if (/Not authorized/.test(message)) return 'Nemaš pristup ovoj prijavi ili firmi. Osvježi stranicu.';
   if (/Pilot not enabled/.test(message)) return 'Novi oglasi još nijesu omogućeni za ovu firmu.';
   if (/Worker profile is required/.test(message)) return 'Prvo dodaj radnički profil u podešavanjima.';

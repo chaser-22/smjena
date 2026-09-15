@@ -49,7 +49,7 @@ export function ApplicationPhoneForm({ phone, workspace }: { phone: string | nul
   </form></details>;
 }
 
-export function PublishApplicationForm({ workspace, businessName, requestId }: { workspace: string; businessName: string; requestId: string }) {
+export function PublishApplicationForm({ workspace, businessName, requestId, requiresCredit = false }: { workspace: string; businessName: string; requestId: string; requiresCredit?: boolean }) {
   const [stableRequestId] = useState(requestId);
   const [values, setValues] = useState({ publicName: businessName, role: 'Konobar', area: 'Centar', address: '', start: '', end: '', compensation: '80', places: '1' });
   const [requirements, setRequirements] = useState<string[]>([]);
@@ -61,6 +61,7 @@ export function PublishApplicationForm({ workspace, businessName, requestId }: {
   if (state.href) return <Feedback state={state} />;
   return <form action={action} className={styles.form}>
     <input type="hidden" name="workspace" value={workspace} /><input type="hidden" name="requestId" value={stableRequestId} />
+    <input type="hidden" name="creditConfirmed" value={requiresCredit ? 'yes' : 'no'} />
     <label>Javni naziv lokala<input name="publicName" value={values.publicName} onChange={(e) => change('publicName', e.target.value)} minLength={2} maxLength={120} required disabled={pending} /></label>
     <p>Naziv će biti vidljiv svima. Bez telefona, emaila i privatnih podataka.</p>
     <div className={styles.grid}><label>Potreban radnik<select name="role" value={values.role} onChange={(e) => change('role', e.target.value)} disabled={pending}>{jobRoles.map((role) => <option key={role}>{role}</option>)}</select></label>
@@ -71,7 +72,7 @@ export function PublishApplicationForm({ workspace, businessName, requestId }: {
     <label>Privatna tačna adresa<input name="address" required minLength={2} maxLength={200} value={values.address} onChange={(e) => change('address', e.target.value)} disabled={pending} /></label>
     <p>Tačnu adresu vidi samo radnik koji prihvati ponudu.</p>
     <details><summary className={styles.secondary}>Dodaj uslove (opciono)</summary>{jobRequirements.map((item) => <label className={styles.check} key={item}><input type="checkbox" name="requirements" value={item} checked={requirements.includes(item)} onChange={(e) => setRequirements((previous) => e.target.checked ? [...previous, item] : previous.filter((value) => value !== item))} disabled={pending} />{item}</label>)}</details>
-    <label className={styles.check}><input name="confirmed" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} required disabled={pending} />Potvrđujem javni naziv i uslove. Firma bira radnika i odgovorna je za zakonit osnov angažovanja i plaćanje.</label>
+    <label className={styles.check}><input name="confirmed" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} required disabled={pending} />Potvrđujem javni naziv i uslove. Firma bira radnika i odgovorna je za zakonit osnov angažovanja i plaćanje.{requiresCredit && ' Koristim 1 kredit za ovu standardnu objavu; SOS nije uključen.'}</label>
     <button className={styles.button} disabled={pending}>{pending ? 'Objavljujem…' : 'Objavi oglas za smjenu'}</button><Feedback state={state} />
   </form>;
 }
