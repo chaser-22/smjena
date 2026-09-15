@@ -298,9 +298,13 @@ test('application offer and worker acceptance reveal contacts only after accepta
     await expect(employerPage.locator('a[href^="tel:"]')).toHaveCount(0);
     await workerPage.reload();
     await expect(workerPage.getByText('Ponuda čeka odgovor', { exact: true })).toBeVisible();
+    await workerPage.getByRole('link', { name: 'Pregledaj ponude', exact: true }).click();
+    await expect(workerPage).toHaveURL(/\/applications\?filter=offered$/);
+    await expect(workerPage.getByRole('navigation', { name: 'Status prijava' }).getByRole('link', { name: 'Ponude', exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(0);
     await workerPage.getByRole('checkbox', { name: /Pročitao\/la sam termin/ }).check();
     await workerPage.getByRole('button', { name: 'Prihvati ponudu', exact: true }).click();
+    await workerPage.getByRole('navigation', { name: 'Status prijava' }).getByRole('link', { name: 'Prihvaćene', exact: true }).click();
     await expect(workerPage.getByText('E2E privatna adresa', { exact: true })).toBeVisible();
     await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(1);
     await employerPage.reload();
@@ -311,6 +315,8 @@ test('application offer and worker acceptance reveal contacts only after accepta
     await workerPage.getByText('Povuci prihvatanje', { exact: true }).click();
     await workerPage.getByRole('checkbox', { name: /Razumijem da gubim/ }).check();
     await workerPage.getByRole('button', { name: 'Potvrdi povlačenje' }).click();
+    await workerPage.getByRole('navigation', { name: 'Status prijava' }).getByRole('link', { name: 'Zatvorene', exact: true }).click();
+    await expect(workerPage.getByText('Prijava povučena', { exact: true })).toBeVisible();
     await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(0);
     await employerPage.reload();
     await expect(employerPage.locator('a[href^="tel:"]')).toHaveCount(0);

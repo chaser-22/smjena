@@ -30,6 +30,8 @@ test('contact and posting context needs an explicit valid workspace', () => {
 });
 
 test('login returns only to known product destinations', () => {
+  assert.equal(safeReturnPath('/applications?filter=offered&page=9'), '/applications?filter=offered&page=9');
+  for (const bad of ['/applications?filter=paid', '/applications?page=-1', '/applications?page=9999999', '/applications?filter=offered&filter=all', '/applications?page=2&page=3', '/applications?next=evil']) assert.equal(safeReturnPath(bad), '/dashboard');
   assert.equal(safeReturnPath('/employer/billing'), '/employer/billing');
   assert.equal(safeReturnPath(`/employer/billing?workspace=${first}`), `/employer/billing?workspace=${first}`);
   for (const bad of ['/employer/billing?workspace=not-a-uuid', '/employer/billing?next=evil', `/employer/billing?workspace=${first}&workspace=${second}`]) assert.equal(safeReturnPath(bad), '/dashboard');

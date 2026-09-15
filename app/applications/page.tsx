@@ -4,22 +4,25 @@ import { ApplicationControl, ApplicationPhoneForm, RefreshApplications } from '@
 import { EmployerResponsibility } from '@/components/marketplace/responsibility';
 import { PreferredControl } from '@/components/marketplace/preferred-control';
 import styles from '@/components/marketplace/marketplace.module.css';
-import { applicationSession, getApplicationContact, listApplications, type ApplicationPost } from '@/lib/application-data';
+import { applicationSession, getApplicationContact, type ApplicationPost } from '@/lib/application-data';
+import { inboxFilters, inboxHref, loadWorkerInbox, parseInboxQuery, type InboxFilter } from '@/lib/application-inbox';
 import { statusLabels } from '@/lib/applications';
 import { publicShiftTime } from '@/lib/public-shifts';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Moje prijave | SMJENA', robots: { index: false, follow: false } };
 
-export default async function ApplicationsPage() {
-  const { client, user, now } = await applicationSession('/applications');
-  const [applications, contact, worker, invitations, invitationPreference] = await Promise.all([
-    listApplications(client, { worker: user.id }), client.from('worker_contacts').select('phone').eq('user_id', user.id).maybeSingle(),
+export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<{ filter?: string | string[]; page?: string | string[] }> }) {
+  const { filter, page } = parseInboxQuery(await searchParams);
+  const { client, user, now } = await applicationSession(inboxHref(filter, page));
+  const [inbox, contact, worker, invitations, invitationPreference] = await Promise.all([
+    loadWorkerInbox(client, user.id, { filter, page }), client.from('worker_contacts').select('phone').eq('user_id', user.id).maybeSingle(),
     client.from('worker_profiles').select('user_id').eq('user_id', user.id).maybeSingle(),
     client.from('application_invitation_inbox').select('id,shift_id,employer_name,role,city,location_area,starts_at,ends_at,pay_cents,effective_status').eq('worker_id', user.id).order('created_at', { ascending: false }).limit(100),
     client.from('invitation_preferences').select('allow_invitations').eq('user_id', user.id).maybeSingle(),
   ]);
   if (contact.error || worker.error || invitations.error || invitationPreference.error) throw new Error('Worker account unavailable');
+  const { applications, hasNext, offerCount } = inbox;
   if (!worker.data) return <MarketplaceShell><h1>Moje prijave</h1><p className={styles.intro}>Za prijavljivanje na smjene dodaj radnički profil na isti nalog. Tvoje firme ostaju odvojene.</p><Link className={styles.button} href="/settings">Dodaj radnički profil</Link></MarketplaceShell>;
   const ids = [...new Set(applications.map((application) => application.shift_id))];
   const posts = ids.length ? await client.from('application_posts').select('*').in('shift_id', ids) : { data: [], error: null };
@@ -28,12 +31,19 @@ export default async function ApplicationsPage() {
   const contacts = new Map(await Promise.all(applications.filter((application) => application.effective_status === 'accepted').map(async (application) => [application.id, await getApplicationContact(client, application.id)] as const)));
   return <MarketplaceShell><p className={styles.kicker}>Tvoji sljedeći koraci</p><h1>Moje prijave</h1>
     <p className={styles.intro}>Prijava ne rezerviše mjesto. Poslodavac šalje ponudu, a ti odlučuješ. Status se provjerava svakih 20 sekundi dok je stranica otvorena.</p>
+    {offerCount > 0 && <aside className={styles.notice} aria-label="Ponude koje čekaju odgovor"><h2>Ponude za odgovor: {offerCount}</h2>
+      <p>Pogledaj uslove i odgovori prije isteka roka. Ponude su poređane po roku za odgovor.</p>
+      <Link className={styles.button} href={inboxHref('offered')}>Pregledaj ponude</Link>
+    </aside>}
+    <nav className={styles.inboxFilters} aria-label="Status prijava">{(Object.keys(inboxFilters) as InboxFilter[]).map((key) =>
+      <Link key={key} href={inboxHref(key)} aria-current={key === filter ? 'page' : undefined}>{inboxFilters[key]}</Link>)}</nav>
+    {filter === 'accepted' && <p className={styles.intro}>Prihvaćene ponude uključuju i protekle termine. Prihvatanje nije potvrda da je rad obavljen ili plaćen.</p>}
     <RefreshApplications /><ApplicationPhoneForm phone={contact.data?.phone ?? null} />
     <details className={styles.notice}><summary className={styles.secondary}>Pozivi firmi — podešavanje</summary>
       <p>Firma koja te je sačuvala među omiljenim radnicima može poslati poziv za oglas. Poziv ne stvara prijavu, rezervaciju ni obavezu. Push obavijesti podešavaš zasebno u obavijestima.</p>
       <PreferredControl id={user.id} action={invitationPreference.data?.allow_invitations === false ? 'allow' : 'mute'} label={invitationPreference.data?.allow_invitations === false ? 'Uključi pozive firmi' : 'Isključi nove pozive firmi'} />
     </details>
-    {invitations.data.some((invitation) => invitation.effective_status === 'invited') && <section aria-labelledby="invitation-heading"><h2 id="invitation-heading">Pozivi da se prijaviš</h2>
+    {filter === 'all' && invitations.data.some((invitation) => invitation.effective_status === 'invited') && <section aria-labelledby="invitation-heading"><h2 id="invitation-heading">Pozivi da se prijaviš</h2>
       <p>Poziv nije ponuda. Prvo pogledaj uslove i odluči želiš li da pošalješ prijavu.</p>
       <div className={styles.list}>{invitations.data.filter((invitation) => invitation.effective_status === 'invited').map((invitation) => <article className={styles.panel} key={invitation.id}>
         <h3>{invitation.role} · {invitation.employer_name}</h3><p>{invitation.city} · {invitation.location_area}</p>
@@ -42,11 +52,14 @@ export default async function ApplicationsPage() {
         <PreferredControl id={invitation.id} action="dismiss" label="Skloni poziv" />
       </article>)}</div>
     </section>}
-    {invitations.data.length === 100 && <p>Prikaz poziva obuhvata 100 najnovijih zapisa.</p>}
-    {!applications.length ? <section className={styles.notice}><h2>Još nemaš prijava</h2><p>Pronađi smjenu koja ti odgovara. Ne treba ti CV.</p><Link href="/shifts" className={styles.button}>Pogledaj smjene</Link></section> : <div className={styles.list}>
+    {filter === 'all' && invitations.data.length === 100 && <p>Prikaz poziva obuhvata 100 najnovijih zapisa.</p>}
+    {!applications.length ? <section className={styles.notice}><h2>{page > 1 ? 'Na ovoj stranici nema prijava' : filter === 'all' ? 'Još nemaš prijava' : 'Nema prijava u ovom prikazu'}</h2>
+      <p>{filter === 'offered' ? 'Kada poslodavac pošalje ponudu, pojaviće se ovdje. Poslata prijava još nije ponuda.' : 'Možeš pogledati sve svoje prijave ili pronaći novu smjenu.'}</p>
+      {(filter !== 'all' || page > 1) && <Link href={inboxHref('all')} className={styles.secondary}>Sve prijave</Link>}
+      <Link href="/shifts" className={styles.button}>Pogledaj smjene</Link></section> : <div className={styles.list}>
       {applications.map((application) => {
         const post = postMap.get(application.shift_id);
-        if (!post) return null;
+        if (!post) throw new Error('Application terms unavailable');
         const status = application.effective_status;
         const nextContact = contacts.get(application.id);
         const beforeStart = new Date(post.starts_at).getTime() > now;
@@ -66,7 +79,11 @@ export default async function ApplicationsPage() {
         </article>;
       })}
     </div>}
-    {applications.length === 200 && <p>Prikazano je 200 najnovijih prijava. Pregled starije istorije još nije dostupan u pilotu.</p>}
+    {(page > 1 || hasNext) && <nav className={styles.inboxFilters} aria-label="Stranice prijava">
+      {page > 1 && <Link href={inboxHref(filter, page - 1)}>Prethodna stranica</Link>}
+      <span>Stranica {page}</span>
+      {hasNext && <Link href={inboxHref(filter, page + 1)}>Sljedeća stranica</Link>}
+    </nav>}
     <EmployerResponsibility />
   </MarketplaceShell>;
 }

@@ -43,7 +43,11 @@ export function safeReturnPath(value: unknown): string {
   if (url.origin !== 'https://smjena.invalid') return '/dashboard';
   if (/^\/shifts(?:\/[0-9a-f-]{36})?$/.test(url.pathname) && !url.search) return url.pathname;
   if (url.pathname === '/settings' && !url.search) return '/settings';
-  if (url.pathname === '/applications' && !url.search) return '/applications';
+  if (url.pathname === '/applications'
+    && [...url.searchParams.keys()].every((key) => ['filter', 'page'].includes(key))
+    && url.searchParams.getAll('filter').length <= 1 && url.searchParams.getAll('page').length <= 1
+    && (!url.searchParams.has('filter') || ['all', 'offered', 'applied', 'accepted', 'closed'].includes(url.searchParams.get('filter')!))
+    && (!url.searchParams.has('page') || /^[1-9]\d{0,5}$/.test(url.searchParams.get('page')!))) return url.pathname + url.search;
   if (url.pathname === '/notifications' && !url.search) return '/notifications';
   if (url.pathname === '/employer/billing'
     && [...url.searchParams.keys()].every((key) => key === 'workspace')

@@ -27,6 +27,9 @@
 .filters label { display: grid; gap: 8px; min-width: 200px; flex: 1; font-weight: 700; }
 .filters .button { margin-top: 0; }
 .list { display: grid; gap: 16px; }
+.inboxFilters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 24px 0; }
+.inboxFilters a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 14px; border: 1px solid #7c8798; border-radius: 8px; background: white; font-weight: 700; }
+.inboxFilters a[aria-current="page"] { background: #152033; color: white; border-color: #152033; }
 .control { margin: 12px 0; }
 .secondary { display: inline-flex; min-height: 44px; align-items: center; padding: 10px 4px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .form .check, .check { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 0; font-size: 14px; line-height: 1.6; }

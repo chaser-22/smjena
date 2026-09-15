@@ -1,5 +1,40 @@
 # Application marketplace migration
 
+## Phase 5 batch — worker application inbox (2026-09-15)
+
+Worker `/applications` now has shareable status filters and 25-row pages instead
+of an inaccessible 200-row history cutoff. Offers use effective database status,
+are ordered by expiry in the offers view, and have a separate worker-scoped count
+across all pages. The all-applications view retains preferred-worker invitations.
+Accepted records remain accepted history, not verified attendance or payment.
+Missing terms and failed list/count queries show the error boundary, never false
+empty/success states. Safe login returns preserve validated filter/page values.
+
+No schema, RLS, billing, application transitions or production gates change.
+Existing security-invoker `application_inbox`, authenticated SELECT and contact RPC
+authorization remain the boundary. Pagination queries never retrieve contact data.
+Offset pages refresh with live state; records may move between pages after a new
+application or status transition. This is not a frozen historical export.
+
+Verification: new SDK-level request tests cover filter-before-limit, stable order,
+page 9 (beyond the former 200-row limit), lookahead pagination, all-page offer count,
+worker scope, closed-state semantics and failed reads. Auth return-path regression
+tests cover safe filters and rejected duplicate/hostile parameters. The guarded
+staging journey now exercises offered → accepted → closed filters; it still needs
+a real isolated authenticated run. Email 429 diagnosis remains open pending SMTP/
+rate-limit configuration; this UI release does not bypass authentication protection.
+
+Passed for this batch: 33 unit/safety tests, 30 local desktop/mobile public browser
+checks, clean/populated PGlite suites, service-worker checks, lint, strict TypeScript
+and production build. Dependency audit: zero vulnerabilities. Hosted read-only
+checks confirm security-invoker view, RLS on both underlying tables, authenticated
+SELECT and no anonymous inbox SELECT. These are not authenticated UI verification.
+
+Remaining: employer-list pagination, authenticated end-to-end/device-push checks,
+phase 4 operational funnel reporting, phase 5 legal/commercial approval and phase 6
+optional moderated reviews/approved legacy run-off. This batch does not complete
+the entire migration or authorize legal/commercial assumptions.
+
 ## Latest batch — preferred-worker invitations (2026-09-15)
 
 Migration `20260915081036_preferred_worker_invitations.sql` is applied to the
