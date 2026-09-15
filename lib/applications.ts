@@ -39,6 +39,8 @@ export function applicationError(message: string): string {
   if (/No offer capacity/.test(message)) return 'Sva mjesta su prihvaćena ili čekaju odgovor na ponudu. Sačekaj ili povuci postojeću ponudu.';
   if (/Overlapping commitment/.test(message)) return 'Već imaš prihvaćenu smjenu u ovom terminu. Ovu ponudu ne možeš prihvatiti.';
   if (/Cannot apply to own/.test(message)) return 'Ne možeš se prijaviti za smjenu firme kojoj pripadaš.';
+  if (/Invitation unavailable/.test(message)) return 'Poziv nije dostupan. Radnik možda ne prima pozive, već ima prijavu ili nije među omiljenima ove firme.';
+  if (/Previous accepted shift required/.test(message)) return 'Radnika možeš sačuvati nakon isteka termina ranije prihvaćene smjene. To nije potvrda dolaska.';
   if (/rate limit/i.test(message)) return 'Dostignut je dnevni limit. Pokušaj sjutra.';
   if (/Invalid public/.test(message)) return 'Provjeri vrijeme, iznos i javni naziv. Ne unosi telefon, email ili web adresu u javni naziv.';
   if (/Shift unavailable|Shift cancelled|Shift already started|Invalid application state/.test(message)) return 'Status se promijenio ili je rok istekao. Osvježi stranicu prije nastavka.';

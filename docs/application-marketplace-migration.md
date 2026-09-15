@@ -1,6 +1,49 @@
 # Application marketplace migration
 
-## Current status — 2026-09-15 (Europe/Stockholm)
+## Latest batch — preferred-worker invitations (2026-09-15)
+
+Migration `20260915081036_preferred_worker_invitations.sql` is applied to the
+owner-approved pre-launch production project. Marko/Cetinje publishing remains enabled.
+
+Employers can save a worker as a private preference after the scheduled end of an
+accepted application, remove that preference, and invite a preferred worker to a
+new public advertisement. Existing `trusted_workers` records are retained. Saving
+is neither a review nor proof that work occurred. There is no contact-directory
+search or access to private phone/address data through preferred-worker RPCs.
+
+Workers see invitations separately in `/applications`, can dismiss them, or disable
+new invitations independently of application/offer updates. The invitation leads
+to the public terms page; only the worker can create an application. Invitations
+never hold capacity or bypass employer selection and worker acceptance. This batch
+does not implement an exclusive crew-only advertising window.
+
+Invitations are unique per post/worker, use recipient/firm rate limits (10 received
+and 100 sent in 24 hours), and create one inbox event transactionally. Retries never
+reopen dismissed invitations or emit another message. Push stays opt-in; dismissal,
+opt-out, application, cancellation and expiry suppress stale queued invitations.
+Current workspace membership is checked on reads and mutations. Notification and
+invitation tables remain protected by RLS. The billing composite FK index warning
+is addressed without altering billing data or enabling charges.
+
+Verification: strict build, lint, 23 unit tests, 28 local public browser tests,
+clean/populated PGlite suites and dependency audit (zero vulnerabilities) passed. Invitation tests include anonymous/
+unrelated-user denial, revoked membership, no contact disclosure before acceptance,
+opt-out, retry idempotency, dismissal, expiry, cancellation and recipient limits.
+These sequential tests are not proof of simultaneous hosted PostgreSQL requests.
+Authenticated invitation screens and real push delivery still require genuine
+session/device verification; no production activity is manufactured for that purpose.
+Hosted owner-role SQL verified empty authorized lists and enabled publishing; browser
+roles cannot forge invitations, anonymous users cannot invite, and the service role
+cannot bypass the stale-invitation filter. Advisors report no new security warnings;
+the composite-FK index warning is resolved. The ten legacy definer warnings and
+leaked-password setting remain as recorded below.
+
+The preceding notification/navigation release (`6bd3d89`) reached Production
+deployment `6447785258`, with 26 production public browser checks passing and two
+local-only fault-injection tests skipped. Exact deployment:
+`https://smjena-nx6d18t0y-ivan-radonjics-projects.vercel.app`.
+
+## Notification release status — 2026-09-15 (Europe/Stockholm)
 
 The owner confirmed the existing **Marko / Cetinje** workspace and authorized its
 application pilot enablement. It is now enabled in production; no publishing gate

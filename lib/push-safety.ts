@@ -12,6 +12,7 @@ export function isTrustedPushEndpoint(value: string): boolean {
 }
 
 export const applicationNotificationText: Record<string, string> = {
+  invited: 'Firma te poziva da pogledaš smjenu i prijaviš se. Mjesto nije rezervisano.',
   applied: 'Stigla je nova prijava.', offered: 'Imaš novu ponudu. Provjeri rok za odgovor.',
   accepted: 'Radnik je prihvatio ponudu.', declined: 'Radnik je odbio ponudu.',
   withdrawn: 'Radnik je povukao prijavu ili prihvatanje.', rejected: 'Poslodavac nije izabrao tvoju prijavu.',

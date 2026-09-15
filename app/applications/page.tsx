@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MarketplaceShell } from '@/components/marketplace/shell';
 import { ApplicationControl, ApplicationPhoneForm, RefreshApplications } from '@/components/marketplace/application-controls';
 import { EmployerResponsibility } from '@/components/marketplace/responsibility';
+import { PreferredControl } from '@/components/marketplace/preferred-control';
 import styles from '@/components/marketplace/marketplace.module.css';
 import { applicationSession, getApplicationContact, listApplications, type ApplicationPost } from '@/lib/application-data';
 import { statusLabels } from '@/lib/applications';
@@ -12,11 +13,13 @@ export const metadata = { title: 'Moje prijave | SMJENA', robots: { index: false
 
 export default async function ApplicationsPage() {
   const { client, user, now } = await applicationSession('/applications');
-  const [applications, contact, worker] = await Promise.all([
+  const [applications, contact, worker, invitations, invitationPreference] = await Promise.all([
     listApplications(client, { worker: user.id }), client.from('worker_contacts').select('phone').eq('user_id', user.id).maybeSingle(),
     client.from('worker_profiles').select('user_id').eq('user_id', user.id).maybeSingle(),
+    client.from('application_invitation_inbox').select('id,shift_id,employer_name,role,city,location_area,starts_at,ends_at,pay_cents,effective_status').eq('worker_id', user.id).order('created_at', { ascending: false }).limit(100),
+    client.from('invitation_preferences').select('allow_invitations').eq('user_id', user.id).maybeSingle(),
   ]);
-  if (contact.error || worker.error) throw new Error('Worker account unavailable');
+  if (contact.error || worker.error || invitations.error || invitationPreference.error) throw new Error('Worker account unavailable');
   if (!worker.data) return <MarketplaceShell><h1>Moje prijave</h1><p className={styles.intro}>Za prijavljivanje na smjene dodaj radnički profil na isti nalog. Tvoje firme ostaju odvojene.</p><Link className={styles.button} href="/settings">Dodaj radnički profil</Link></MarketplaceShell>;
   const ids = [...new Set(applications.map((application) => application.shift_id))];
   const posts = ids.length ? await client.from('application_posts').select('*').in('shift_id', ids) : { data: [], error: null };
@@ -26,6 +29,20 @@ export default async function ApplicationsPage() {
   return <MarketplaceShell><p className={styles.kicker}>Tvoji sljedeći koraci</p><h1>Moje prijave</h1>
     <p className={styles.intro}>Prijava ne rezerviše mjesto. Poslodavac šalje ponudu, a ti odlučuješ. Status se provjerava svakih 20 sekundi dok je stranica otvorena.</p>
     <RefreshApplications /><ApplicationPhoneForm phone={contact.data?.phone ?? null} />
+    <details className={styles.notice}><summary className={styles.secondary}>Pozivi firmi — podešavanje</summary>
+      <p>Firma koja te je sačuvala među omiljenim radnicima može poslati poziv za oglas. Poziv ne stvara prijavu, rezervaciju ni obavezu. Push obavijesti podešavaš zasebno u obavijestima.</p>
+      <PreferredControl id={user.id} action={invitationPreference.data?.allow_invitations === false ? 'allow' : 'mute'} label={invitationPreference.data?.allow_invitations === false ? 'Uključi pozive firmi' : 'Isključi nove pozive firmi'} />
+    </details>
+    {invitations.data.some((invitation) => invitation.effective_status === 'invited') && <section aria-labelledby="invitation-heading"><h2 id="invitation-heading">Pozivi da se prijaviš</h2>
+      <p>Poziv nije ponuda. Prvo pogledaj uslove i odluči želiš li da pošalješ prijavu.</p>
+      <div className={styles.list}>{invitations.data.filter((invitation) => invitation.effective_status === 'invited').map((invitation) => <article className={styles.panel} key={invitation.id}>
+        <h3>{invitation.role} · {invitation.employer_name}</h3><p>{invitation.city} · {invitation.location_area}</p>
+        <p>{publicShiftTime(invitation.starts_at)} — {publicShiftTime(invitation.ends_at)}</p><p>€{(invitation.pay_cents / 100).toFixed(2)} ponuđeno po osobi</p>
+        <Link className={styles.button} href={`/shifts/${invitation.shift_id}`}>Pogledaj uslove i prijavi se</Link>
+        <PreferredControl id={invitation.id} action="dismiss" label="Skloni poziv" />
+      </article>)}</div>
+    </section>}
+    {invitations.data.length === 100 && <p>Prikaz poziva obuhvata 100 najnovijih zapisa.</p>}
     {!applications.length ? <section className={styles.notice}><h2>Još nemaš prijava</h2><p>Pronađi smjenu koja ti odgovara. Ne treba ti CV.</p><Link href="/shifts" className={styles.button}>Pogledaj smjene</Link></section> : <div className={styles.list}>
       {applications.map((application) => {
         const post = postMap.get(application.shift_id);

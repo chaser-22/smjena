@@ -34,7 +34,7 @@ export function NotificationPreferences({ enabled: initialEnabled }: { enabled: 
     finally { setPending(false); }
   }
   return <section className={styles.panel}><h2>Prijave i ponude — obavijesti</h2>
-    <p>Dobij promjene statusa i kada SMJENA nije otvorena. Bez reklamnih poruka. Dostava zavisi od pregledača i uređaja.</p>
+    <p>Dobij promjene statusa i dozvoljene pozive firmi i kada SMJENA nije otvorena. Dostava zavisi od pregledača i uređaja. Pozive firmi možeš posebno isključiti u „Moje prijave”.</p>
     <button className={styles.button} disabled={pending} onClick={change}>{pending ? 'Čuvam podešavanje…' : enabled ? 'Isključi push obavijesti' : 'Uključi push obavijesti'}</button>
     {message && <p aria-live="polite" className={styles.notice}>{message}</p>}
   </section>;
