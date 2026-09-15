@@ -37,6 +37,12 @@ roles cannot forge invitations, anonymous users cannot invite, and the service r
 cannot bypass the stale-invitation filter. Advisors report no new security warnings;
 the composite-FK index warning is resolved. The ten legacy definer warnings and
 leaked-password setting remain as recorded below.
+The guarded staging browser spec now includes invitation → terms → application →
+offer → acceptance → contact, and distinguishes new default routes from explicit
+legacy-history routes. It was type-checked and discovered by Playwright, **not run**
+against an authenticated staging project. Invitation release `a543125` reached
+Production deployment `6454552718` successfully at
+`https://smjena-lg0th2o28-ivan-radonjics-projects.vercel.app`.
 
 The preceding notification/navigation release (`6bd3d89`) reached Production
 deployment `6447785258`, with 26 production public browser checks passing and two

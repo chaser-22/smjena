@@ -67,6 +67,8 @@ test.describe('staging worker–employer acceptance journey', () => {
       const employerPage = await employerContext.newPage();
 
       await employerPage.goto('/dashboard');
+      await expect(employerPage).toHaveURL(new RegExp(`/employer/shifts\\?workspace=${ids.employerId}$`));
+      await employerPage.goto(`/dashboard?mode=employer&workspace=${ids.employerId}`);
       await expect(
         employerPage.getByText('Poslodavac', { exact: true }),
       ).toBeVisible();
@@ -97,6 +99,8 @@ test.describe('staging worker–employer acceptance journey', () => {
       ids.shiftIds.push(shift.id);
 
       await workerPage.goto('/dashboard');
+      await expect(workerPage).toHaveURL(/\/shifts$/);
+      await workerPage.goto('/dashboard?mode=worker');
       await expect(
         workerPage.getByText('Radnički nalog', { exact: true }),
       ).toBeVisible();
@@ -261,7 +265,24 @@ test('application offer and worker acceptance reveal contacts only after accepta
     await employerPage.getByRole('link', { name: 'Nastavi →' }).click();
     await expect(employerPage).toHaveURL(/\/employer\/shifts\/[0-9a-f-]+\/applications$/);
     shiftId = new URL(employerPage.url()).pathname.split('/')[3];
-    await workerPage.goto(`/shifts/${shiftId}`);
+    // Seed only the isolated staging fixture's pre-existing preferred relationship.
+    // The production host/project are rejected by requireStagingTestConfig().
+    assertNoError((await admin.from('trusted_workers').insert({ employer_id: workspace, worker_id: workerId })).error, 'create staging preferred relationship');
+    await employerPage.reload();
+    await employerPage.getByText('Pozovi omiljene radnike da se prijave', { exact: true }).click();
+    const preferredRow = employerPage.getByRole('listitem').filter({ has: employerPage.locator(`input[name="worker"][value="${workerId}"]`) });
+    await preferredRow.getByRole('button', { name: 'Pozovi da se prijavi', exact: true }).click();
+    await expect(preferredRow.getByText('Poziv je sačuvan. To nije potvrda dostave ili čitanja.', { exact: true })).toBeVisible();
+    const applicationsBefore = await admin.from('shift_applications').select('id', { count: 'exact', head: true }).eq('shift_id', shiftId);
+    assertNoError(applicationsBefore.error, 'verify invitation did not create an application');
+    expect(applicationsBefore.count).toBe(0);
+    await workerPage.goto('/notifications');
+    await expect(workerPage.getByRole('heading', { name: 'Firma te poziva da pogledaš smjenu i prijaviš se. Mjesto nije rezervisano.' })).toBeVisible();
+    await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(0);
+    await workerPage.goto('/applications');
+    await expect(workerPage.getByRole('heading', { name: 'Pozivi da se prijaviš', exact: true })).toBeVisible();
+    await expect(workerPage.locator('a[href^="tel:"]')).toHaveCount(0);
+    await workerPage.getByRole('link', { name: 'Pogledaj uslove i prijavi se', exact: true }).click();
     await expect(workerPage.getByText('E2E privatna adresa')).toHaveCount(0);
     await workerPage.getByRole('button', { name: 'Pošalji prijavu' }).click();
     await workerPage.getByRole('link', { name: /Otvori moju prijavu|Nastavi →/ }).first().click();
