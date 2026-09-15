@@ -48,6 +48,10 @@ export async function verifyNotifications(db, { employerId, employerUserId, work
   assert.equal(retries.some(j=>j.kind==='offered'),false,'Do not send stale offers.');
   const retried=retries.find(j=>j.kind==='applied');
   assert.ok(retried); assert.notEqual(retried.token,first.token);
+  await db.query("select public.finish_application_push($1,$2,'accepted_by_service')",[retried.job_id,first.token]);
+  await actor(null,'operator');
+  assert.equal((await db.query('select state from private.application_push_outbox where id=$1',[retried.job_id])).rows[0].state,'leased','A crashed worker cannot acknowledge a re-leased job with its old token.');
+  await actor(null,'service_role');
   await db.query("select public.finish_application_push($1,$2,'accepted_by_service')",[retried.job_id,retried.token]);
   await actor(employerUserId);
   await db.query('update public.notification_preferences set application_push=false where user_id=$1',[employerUserId]);

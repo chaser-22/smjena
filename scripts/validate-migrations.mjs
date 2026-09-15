@@ -8,6 +8,7 @@ import { verifyBilling } from './verify-billing.mjs';
 import { verifyNotifications } from './verify-notifications.mjs';
 import { verifyInvitations } from './verify-invitations.mjs';
 import { verifySos } from './verify-sos.mjs';
+import { verifyPushScheduler } from './verify-push-scheduler.mjs';
 
 const root = new URL('../', import.meta.url);
 const modelMigrationFile = 'supabase/migrations/20260914171829_isolate_marketplace_models.sql';
@@ -356,5 +357,7 @@ await database.exec(await readFile(new URL('supabase/migrations/20260915081036_p
 await verifyInvitations(database, { employerId, employerUserId, workerOneId, workerTwoId });
 await database.exec(await readFile(new URL('supabase/migrations/20260915175154_posting_credit_redemption_and_sos.sql', root), 'utf8'));
 await verifySos(database, { employerId, employerUserId, workerOneId, workerTwoId });
+await verifyPushScheduler(database, new URL('supabase/migrations/20260915180734_application_push_scheduler.sql', root),
+  new URL('supabase/migrations/20260915181032_secure_application_push_transport.sql', root));
 console.log('all migrations, legacy transitions and model boundaries validated');
 await database.close();

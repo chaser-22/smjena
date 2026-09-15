@@ -1,6 +1,16 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('notification worker refuses public requests without invoking delivery', async ({ request }) => {
+  for (const token of ['', 'undefined', 'not-a-wakeup-token']) {
+    const response = await request.post('/api/internal/application-push', { headers: { 'x-smjena-wakeup': token } });
+    expect(response.status()).toBe(401);
+    expect(response.headers()['cache-control']).toBe('no-store');
+    expect(await response.json()).toEqual({ error: 'Unauthorized' });
+  }
+  expect((await request.get('/api/internal/application-push')).status()).toBe(405);
+});
+
 test.describe('public entry and authentication states', () => {
   test('public screens have no automated WCAG A/AA violations', async ({
     page,
